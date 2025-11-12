@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  📑 <a href="#-overview">Overview</a> • <a href="#%EF%B8%8F-features">Features</a> • <a href="#%EF%B8%8F-support">Support</a> • <a href="#%EF%B8%8F-license">License</a>
+  📑 <a href="#-overview">Overview</a> • <a href="#-features">Features</a> • <a href="#%EF%B8%8F-support">Support</a> • <a href="#%EF%B8%8F-license">License</a>
 </p>
 
 <p align="center">
@@ -41,6 +41,9 @@
 
 **4. Ultra Lightweight**
 - Built with lightweight Tauri framework and maximum package size optimization
+
+### 🎨 UI
+<img width="1920" height="1040" alt="ss" src="https://github.com/user-attachments/assets/c38ec7eb-24d6-44eb-99c2-0f92f50c6f86" />
 
 ## 🛠️ Support
 
