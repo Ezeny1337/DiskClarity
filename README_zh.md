@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  📑 <a href="#-项目概述">项目概述</a> • <a href="#%EF%B8%8f-功能特性">功能特性</a> • <a href="#%EF%B8%8f-支持">支持</a> • <a href="#%EF%B8%8f-许可证">许可证</a>
+  📑 <a href="#-概述">概述</a> • <a href="#-特性">特性</a> • <a href="#%EF%B8%8F-支持">支持</a> • <a href="#%EF%B8%8F-license">许可证</a>
 </p>
 
 <p align="center">
@@ -20,11 +20,11 @@
 
 ---
 
-## 📖 项目概述
+## 📖 概述
 
 **DiskClarity** 是一款开源、高效、轻量的磁盘空间分析工具。它为用户提供了清晰直观的方式来可视化磁盘使用情况，识别大文件和目录，并有效优化存储空间。
 
-### 🚀 功能特性
+### 🚀 特性
 
 **一、极致效率**
 - **Rust 构建**: 最大的性能和内存安全性
@@ -41,6 +41,9 @@
 
 **四、极致轻量**
 - Tauri 轻量级框架构建，并最大程度优化打包体积
+
+### 🎨 UI
+<img width="1920" height="1040" alt="ss" src="https://github.com/user-attachments/assets/c38ec7eb-24d6-44eb-99c2-0f92f50c6f86" />
 
 ## 🛠️ 支持
 
