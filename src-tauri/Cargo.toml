@@ -1,0 +1,55 @@
+[package]
+name = "DiskClarity"
+version = "1.0.0"
+description = "An efficient and lightweight disk space analysis tool"
+authors = ["Ezeny"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "diskclarity_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# 优化配置
+[profile.release]
+panic = "abort"     # 减小panic处理开销
+codegen-units = 1   # 更好的优化
+lto = true          # 链接时优化
+strip = true        # 移除调试符号
+opt-level = "z"     # 优化大小
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["wry"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+rmp-serde = "1.3"
+flate2 = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "fs", "sync", "process"] }
+parking_lot = { version = "0.12", features = [] }
+num_cpus = { version = "1.17", default-features = false }
+winapi = { version = "0.3", features = ["fileapi", "winbase", "handleapi", "ioapiset", "winnt", "winioctl", "winerror", "minwindef", "std"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
+    "Win32_Security",
+] }
+rayon = { version = "1.11", default-features = false }
+
+# 进一步优化配置
+[profile.release.package."*"]
+opt-level = "z"     # 优化依赖包大小
+
+[profile.dev.package."*"]
+opt-level = "z"     # 开发模式也优化大小
+

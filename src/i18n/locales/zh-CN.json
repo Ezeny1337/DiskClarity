@@ -1,0 +1,86 @@
+{
+  "app": {
+    "title": "DiskClarity",
+    "logoAlt": "DiskClarity"
+  },
+  "scanControl": {
+    "title": "扫描目标",
+    "selectDrive": "选择驱动器",
+    "selectDriveLabel": "Select Drive",
+    "diskInfo": "磁盘信息",
+    "totalCapacity": "总容量：",
+    "usedSpace": "已用空间：",
+    "availableSpace": "可用空间：",
+    "usageRate": "使用率",
+    "startScan": "开始扫描",
+    "cancelScan": "取消扫描",
+    "pleaseSelectDrive": "请选择一个驱动器",
+    "scanning": "扫描中...",
+    "fetchingSizes": "获取文件大小...",
+    "buildingTree": "构建文件树...",
+    "serializing": "处理数据中...",
+    "complete": "完成",
+    "processing": "处理中...",
+    "files": "Files",
+    "dirs": "Dirs",
+    "size": "Size",
+    "time": "Time",
+    "scanCompleted": "✓ 扫描完成，耗时 {{duration}}",
+    "scanDetails": "{{files}} 个文件，{{dirs}} 个目录，{{size}}"
+  },
+  "scanOptions": {
+    "title": "扫描选项",
+    "performance": "性能",
+    "threadCount": "线程数：{{count}} {{auto}}",
+    "auto": "自动",
+    "autoAllCores": "（自动 - 全部核心）",
+    "slowerLowCpu": "较慢，CPU 占用低",
+    "fasterHighCpu": "较快，CPU 占用高",
+    "threads": "{{count}} 线程"
+  },
+  "sortOptions": {
+    "title": "文件树排序",
+    "sortBy": "排序方式",
+    "sortOrder": "排序顺序",
+    "name": "名称",
+    "size": "大小",
+    "modified": "修改日期",
+    "fileCount": "文件数量",
+    "ascending": "升序",
+    "descending": "降序"
+  },
+  "treemapView": {
+    "noData": "没有可用的扫描数据，开始扫描以可视化磁盘使用情况。",
+    "rootDirectory": "根目录",
+    "copyPath": "复制路径",
+    "files": "files",
+    "fileCount": "文件数：{{count, number}}",
+    "clickToDrillDown": "点击以深入",
+    "clickToView": "点击任何文件夹以查看其内容。矩形大小代表磁盘空间使用情况。"
+  },
+  "fileList": {
+    "noData": "没有可用的扫描数据。",
+    "title": "文件树",
+    "files": "个文件",
+    "folders": "个文件夹",
+    "name": "名称",
+    "size": "大小",
+    "percentage": "比例",
+    "fileCount": "文件数",
+    "modifiedTime": "修改时间",
+    "showMore": "显示更多 ({{count}} 项剩余)",
+    "unknown": "Unknown",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{days}}d ago",
+    "weeksAgo": "{{weeks}}w ago",
+    "monthsAgo": "{{months}}mo ago",
+    "yearsAgo": "{{years}}y ago"
+  },
+  "common": {
+    "close": "关闭",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "unmaximize": "还原"
+  }
+}

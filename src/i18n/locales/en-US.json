@@ -1,0 +1,86 @@
+{
+  "app": {
+    "title": "DiskClarity",
+    "logoAlt": "DiskClarity"
+  },
+  "scanControl": {
+    "title": "Scan Target",
+    "selectDrive": "Select Drive",
+    "selectDriveLabel": "Select Drive",
+    "diskInfo": "Disk Information",
+    "totalCapacity": "Total Capacity: ",
+    "usedSpace": "Used Space: ",
+    "availableSpace": "Available Space: ",
+    "usageRate": "Usage",
+    "startScan": "Start Scan",
+    "cancelScan": "Cancel Scan",
+    "pleaseSelectDrive": "Please select a drive",
+    "scanning": "Scanning...",
+    "fetchingSizes": "Fetching file sizes...",
+    "buildingTree": "Building file tree...",
+    "serializing": "Processing data...",
+    "complete": "Complete",
+    "processing": "Processing...",
+    "files": "Files",
+    "dirs": "Dirs",
+    "size": "Size",
+    "time": "Time",
+    "scanCompleted": "✓ Scan completed in {{duration}}",
+    "scanDetails": "{{files}} files, {{dirs}} directories, {{size}}"
+  },
+  "scanOptions": {
+    "title": "Scan Options",
+    "performance": "Performance",
+    "threadCount": "Threads: {{count}} {{auto}}",
+    "auto": "Auto",
+    "autoAllCores": "(Auto - All cores)",
+    "slowerLowCpu": "Slower, Low CPU usage",
+    "fasterHighCpu": "Faster, High CPU usage",
+    "threads": "{{count}} threads"
+  },
+  "sortOptions": {
+    "title": "File Tree Sort",
+    "sortBy": "Sort By",
+    "sortOrder": "Sort Order",
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified Date",
+    "fileCount": "File Count",
+    "ascending": "Ascending",
+    "descending": "Descending"
+  },
+  "treemapView": {
+    "noData": "No scan data available. Start scanning to visualize disk usage.",
+    "rootDirectory": "Root Directory",
+    "copyPath": "Copy Path",
+    "files": "files",
+    "fileCount": "Files: {{count, number}}",
+    "clickToDrillDown": "Click to drill down",
+    "clickToView": "Click any folder to view its contents. Rectangle size represents disk space usage."
+  },
+  "fileList": {
+    "noData": "No scan data available.",
+    "title": "File Tree",
+    "files": "files",
+    "folders": "folders",
+    "name": "Name",
+    "size": "Size",
+    "percentage": "Percentage",
+    "fileCount": "File Count",
+    "modifiedTime": "Modified Time",
+    "showMore": "Show More ({{count}} items remaining)",
+    "unknown": "Unknown",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{days}}d ago",
+    "weeksAgo": "{{weeks}}w ago",
+    "monthsAgo": "{{months}}mo ago",
+    "yearsAgo": "{{years}}y ago"
+  },
+  "common": {
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "unmaximize": "Unmaximize"
+  }
+}

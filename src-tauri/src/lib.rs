@@ -1,0 +1,234 @@
+mod mft_scanner;
+
+use mft_scanner::{MftScanner, ScanConfig, ScanProgress};
+
+use parking_lot::Mutex;
+use std::sync::Arc;
+use tauri::State;
+
+// 全局扫描件状态
+struct ScannerState {
+    scanner: Arc<Mutex<Option<Arc<MftScanner>>>>,
+}
+
+impl ScannerState {
+    fn new() -> Self {
+        Self {
+            scanner: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+#[tauri::command]
+async fn start_scan(
+    path: String,
+    config: ScanConfig,
+    state: State<'_, ScannerState>,
+) -> Result<Vec<u8>, String> {
+    // 创建扫描件实例
+    let scanner = Arc::new(MftScanner::new());
+    
+    // 将扫描件存储在状态中以追踪进度
+    {
+        let mut scanner_lock = state.scanner.lock();
+        *scanner_lock = Some(scanner.clone());
+    }
+
+    // 在阻塞任务中运行扫描
+    let scan_start = std::time::Instant::now();
+    let result = tokio::task::spawn_blocking(move || {
+        scanner.scan(&path, config)
+    })
+    .await
+    .map_err(|e| format!("Scan task failed: {}", e))??;
+    
+    let _scan_duration = scan_start.elapsed();
+    
+    // 更新阶段为序列化
+    {
+        let scanner_lock = state.scanner.lock();
+        if let Some(ref scanner) = *scanner_lock {
+            *scanner.current_stage.lock() = String::from("serializing");
+        }
+    }
+    
+    // 序列化为 MessagePack 并压缩
+    let serialize_start = std::time::Instant::now();
+    let msgpack_data = rmp_serde::to_vec_named(&result)
+        .map_err(|e| format!("MessagePack serialization failed: {}", e))?;
+    
+    // 使用 gzip 压缩
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+    
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(&msgpack_data)
+        .map_err(|e| format!("Compression write failed: {}", e))?;
+    let compressed_data = encoder.finish()
+        .map_err(|e| format!("Compression finish failed: {}", e))?;
+    
+    let _serialize_duration = serialize_start.elapsed();
+
+    // 从状态中清除扫描件
+    {
+        let mut scanner_lock = state.scanner.lock();
+        *scanner_lock = None;
+    }
+    
+    Ok(compressed_data)
+}
+
+#[tauri::command]
+async fn get_scan_progress(state: State<'_, ScannerState>) -> Result<ScanProgress, String> {
+    let scanner_lock = state.scanner.lock();
+    
+    if let Some(scanner) = scanner_lock.as_ref() {
+        Ok(scanner.get_progress())
+    } else {
+        Err("No active scan".to_string())
+    }
+}
+
+#[tauri::command]
+async fn cancel_scan(state: State<'_, ScannerState>) -> Result<(), String> {
+    let scanner_lock = state.scanner.lock();
+    
+    if let Some(scanner) = scanner_lock.as_ref() {
+        scanner.cancel();
+        Ok(())
+    } else {
+        Err("No active scan".to_string())
+    }
+}
+
+#[tauri::command]
+#[allow(unused_must_use)]
+async fn get_drives() -> Result<Vec<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::path::Path;
+        let mut drives = Vec::new();
+        for letter in b'A'..=b'Z' {
+            let drive = format!("{}:\\", letter as char);
+            if Path::new(&drive).exists() {
+                drives.push(drive);
+            }
+        }
+        Ok(drives)
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(vec!["/".to_string()])
+    }
+}
+
+#[tauri::command]
+fn get_cpu_count() -> usize {
+    num_cpus::get()
+}
+
+#[derive(serde::Serialize)]
+struct DiskInfo {
+    path: String,
+    total_space: u64,
+    available_space: u64,
+    used_space: u64,
+}
+
+#[tauri::command]
+async fn get_disk_info(path: String) -> Result<DiskInfo, String> {
+    tokio::task::spawn_blocking(move || {
+        #[cfg(target_os = "windows")]
+        {
+            use winapi::um::fileapi::GetDiskFreeSpaceExW;
+            use std::os::windows::ffi::OsStrExt;
+            
+            let wide_path: Vec<u16> = std::ffi::OsStr::new(&path)
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+            
+            let mut free_bytes: u64 = 0;
+            let mut total_bytes: u64 = 0;
+            let mut available_bytes: u64 = 0;
+            
+            unsafe {
+                if GetDiskFreeSpaceExW(
+                    wide_path.as_ptr(),
+                    &mut available_bytes as *mut u64 as *mut _,
+                    &mut total_bytes as *mut u64 as *mut _,
+                    &mut free_bytes as *mut u64 as *mut _,
+                ) == 0 {
+                    return Err("Failed to get disk space information".to_string());
+                }
+            }
+            
+            let used_bytes = total_bytes.saturating_sub(free_bytes);
+            
+            Ok(DiskInfo {
+                path: path.clone(),
+                total_space: total_bytes,
+                available_space: available_bytes,
+                used_space: used_bytes,
+            })
+        }
+        
+        #[cfg(not(target_os = "windows"))]
+        {
+            use std::fs;
+            
+            match fs::metadata(disk_path) {
+                Ok(_) => {
+                    // On Unix systems, we can use statvfs
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::MetadataExt;
+                        use libc::{c_char, statvfs};
+                        use std::ffi::CString;
+                        
+                        let c_path = CString::new(path.as_bytes()).map_err(|e| e.to_string())?;
+                        let mut stat: statvfs = unsafe { std::mem::zeroed() };
+                        
+                        if unsafe { statvfs(c_path.as_ptr() as *const c_char, &mut stat) } == 0 {
+                            let total_bytes = stat.f_blocks * stat.f_frsize;
+                            let available_bytes = stat.f_bavail * stat.f_frsize;
+                            let free_bytes = stat.f_bfree * stat.f_frsize;
+                            let used_bytes = total_bytes.saturating_sub(free_bytes);
+                            
+                            return Ok(DiskInfo {
+                                path: path.clone(),
+                                total_space: total_bytes,
+                                available_space: available_bytes,
+                                used_space: used_bytes,
+                            });
+                        }
+                    }
+                    
+                    Err("Failed to get disk space information".to_string())
+                }
+                Err(e) => Err(format!("Failed to access path: {}", e)),
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::<tauri::Wry>::default()
+        .plugin(tauri_plugin_opener::init())
+        .manage(ScannerState::new())
+        .invoke_handler(tauri::generate_handler![
+            start_scan,
+            get_scan_progress,
+            cancel_scan,
+            get_drives,
+            get_cpu_count,
+            get_disk_info
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
