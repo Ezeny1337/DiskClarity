@@ -199,7 +199,7 @@ function App() {
           >
             <Box
               component="img"
-              src="/diskclarity_logo.png"
+              src="/32x32.png"
               alt={t('app.logoAlt')}
               sx={{ width: 32, height: 32 }}
             />
