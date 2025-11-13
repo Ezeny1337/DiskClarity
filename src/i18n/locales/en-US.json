@@ -68,6 +68,10 @@
     "archive": "Archive",
     "other": "Other"
   },
+  "grouping": {
+    "folder": "📁 Folder",
+    "noExtension": "No Extension"
+  },
   "treemapView": {
     "noData": "No scan data available. Start scanning to visualize disk usage.",
     "root": "Root",

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Box, Paper, Typography, Breadcrumbs, Link, Chip, Stack, IconButton, Tooltip, Menu, MenuItem } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useScanStore, FileNode } from '../store/scanStore';
@@ -39,6 +39,8 @@ export const TreemapView: React.FC = () => {
     sortOrder,
     flatGrouping,
   } = useScanStore();
+
+  const tGrouping = useCallback((key: string) => t(key), [t]);
 
   const [hoveredRect, setHoveredRect] = useState<TreemapRect | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -238,8 +240,8 @@ export const TreemapView: React.FC = () => {
     if (!displayNode || containerSize.width === 0 || containerSize.height === 0) return [];
 
     if (displayNode.children && displayNode.children.length > 0) {
-      // 应用分组
-      let childrenToDisplay = groupFileNodes(displayNode.children, groupBy, displayNode.path, flatGrouping);
+      // 应用分组（传递当前节点的路径，避免在分组内再次分组）
+      let childrenToDisplay = groupFileNodes(displayNode.children, groupBy, displayNode.path, flatGrouping, tGrouping);
       
       // 应用排序
       childrenToDisplay = sortGroupedNodes(childrenToDisplay, sortField, sortOrder);
@@ -248,7 +250,7 @@ export const TreemapView: React.FC = () => {
     }
 
     return [];
-  }, [displayNode, containerSize, groupBy, sortField, sortOrder, flatGrouping]);
+  }, [displayNode, containerSize, groupBy, sortField, sortOrder, flatGrouping, tGrouping]);
 
   const handleRectClick = (rect: TreemapRect) => {
     if (!rect.node.is_dir) return;

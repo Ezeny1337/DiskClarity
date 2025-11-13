@@ -64,29 +64,47 @@ function collectAllFiles(nodes: FileNode[]): FileNode[] {
 
 /**
  * 获取分组的显示名称
+ * @param key 分组键
+ * @param groupBy 分组方式
+ * @param t 翻译函数
  */
-function getGroupDisplayName(key: string, groupBy: GroupBy): string {
+function getGroupDisplayName(key: string, groupBy: GroupBy, t?: (key: string) => string): string {
   if (key === '__folder__') {
-    return '📁 文件夹';
+    return t ? t('grouping.folder') : '📁 文件夹';
   }
 
   if (groupBy === 'type') {
-    const typeLabels: Record<string, string> = {
-      'video': '🎬 视频',
-      'image': '🖼️ 图片',
-      'audio': '🎵 音频',
-      'application': '⚙️ 应用程序',
-      'document': '📄 文档',
-      'source': '💻 源代码',
-      'config': '⚙️ 配置文件',
-      'archive': '📦 压缩包',
-      'other': '📋 其他',
+    const typeEmojis: Record<string, string> = {
+      'video': '🎬',
+      'image': '🖼️',
+      'audio': '🎵',
+      'application': '⚙️',
+      'document': '📄',
+      'source': '💻',
+      'config': '⚙️',
+      'archive': '📦',
+      'other': '📋',
     };
-    return typeLabels[key] || '📋 其他';
+    
+    const typeKeys: Record<string, string> = {
+      'video': 'fileType.video',
+      'image': 'fileType.image',
+      'audio': 'fileType.audio',
+      'application': 'fileType.application',
+      'document': 'fileType.document',
+      'source': 'fileType.source',
+      'config': 'fileType.config',
+      'archive': 'fileType.archive',
+      'other': 'fileType.other',
+    };
+    
+    const emoji = typeEmojis[key] || '📋';
+    const label = t ? t(typeKeys[key] || 'fileType.other') : key;
+    return `${emoji} ${label}`;
   }
 
   if (groupBy === 'extension') {
-    return key === 'NO_EXT' ? '无扩展名' : `.${key}`;
+    return key === 'NO_EXT' ? (t ? t('grouping.noExtension') : '无扩展名') : `.${key}`;
   }
 
   return key;
@@ -99,7 +117,8 @@ export function groupFileNodes(
   nodes: FileNode[],
   groupBy: GroupBy,
   parentPath?: string,
-  flatGrouping: boolean = false
+  flatGrouping: boolean = false,
+  t?: (key: string) => string
 ): FileNode[] {
   if (groupBy === 'none' || !nodes || nodes.length === 0) {
     return nodes;
@@ -142,7 +161,7 @@ export function groupFileNodes(
     const totalFileCount = groupedChildren.length;
     const totalDirCount = 0;
 
-    const displayName = getGroupDisplayName(groupKey, groupBy);
+    const displayName = getGroupDisplayName(groupKey, groupBy, t);
     
     try {
       let maxModifiedTime = 0;

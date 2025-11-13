@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Paper,
   Typography,
@@ -51,6 +51,7 @@ interface TreeItemProps {
 
 const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate, maxInitialChildren = 100 }) => {
   const { t } = useTranslation();
+  const tGrouping = useCallback((key: string) => t(key), [t]);
   const [expanded, setExpanded] = useState(false);
   const [displayCount, setDisplayCount] = useState(maxInitialChildren);
   const { sortField, sortOrder, groupBy, flatGrouping } = useScanStore();
@@ -61,7 +62,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
   let sortedChildren = hasChildren ? [...node.children] : [];
   
   // 应用分组
-  sortedChildren = groupFileNodes(sortedChildren, groupBy, node.path, flatGrouping);
+  sortedChildren = groupFileNodes(sortedChildren, groupBy, node.path, flatGrouping, tGrouping);
   
   // 应用排序
   sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);
@@ -206,6 +207,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
 
 export const FileList: React.FC = () => {
   const { t } = useTranslation();
+  const tGrouping = useCallback((key: string) => t(key), [t]);
   const { 
     currentNode, 
     scanResult, 
@@ -252,7 +254,7 @@ export const FileList: React.FC = () => {
     : [];
   
   // 应用分组
-  sortedChildren = groupFileNodes(sortedChildren, groupBy, displayNode?.path, flatGrouping);
+  sortedChildren = groupFileNodes(sortedChildren, groupBy, displayNode?.path, flatGrouping, tGrouping);
   
   // 应用排序
   sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);

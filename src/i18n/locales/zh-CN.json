@@ -68,6 +68,10 @@
     "archive": "压缩包",
     "other": "其他"
   },
+  "grouping": {
+    "folder": "📁 文件夹",
+    "noExtension": "无扩展名"
+  },
   "treemapView": {
     "noData": "没有可用的扫描数据，开始扫描以可视化磁盘使用情况。",
     "root": "根目录",
