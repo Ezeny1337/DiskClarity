@@ -43,7 +43,7 @@
 - Tauri 轻量级框架构建，并最大程度优化打包体积
 
 ### 🎨 UI
-<img width="1920" height="1040" alt="ss" src="https://github.com/user-attachments/assets/c38ec7eb-24d6-44eb-99c2-0f92f50c6f86" />
+<img width="1920" height="1040" alt="ss" src="https://github.com/user-attachments/assets/96a666cb-4b86-4e35-9605-638d14d387ff" />
 
 ## 🛠️ 支持
 
