@@ -43,7 +43,8 @@
 - Built with lightweight Tauri framework and maximum package size optimization
 
 ### 🎨 UI
-<img width="1920" height="1040" alt="ss" src="https://github.com/user-attachments/assets/c38ec7eb-24d6-44eb-99c2-0f92f50c6f86" />
+<img width="1920" height="1040" alt="ss" src="https://github.com/user-attachments/assets/96a666cb-4b86-4e35-9605-638d14d387ff" />
+
 
 ## 🛠️ Support
 
