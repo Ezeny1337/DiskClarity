@@ -25,7 +25,7 @@
     "dirs": "Dirs",
     "size": "Size",
     "time": "Time",
-    "scanCompleted": "✓ Scan completed in {{duration}}",
+    "scanCompleted": "Scan completed in {{duration}}",
     "scanDetails": "{{files}} files, {{dirs}} directories, {{size}}"
   },
   "scanOptions": {
@@ -49,14 +49,34 @@
     "ascending": "Ascending",
     "descending": "Descending"
   },
+  "groupOptions": {
+    "title": "Group Options",
+    "groupBy": "Group By",
+    "none": "No Grouping",
+    "byType": "Group by Common Type",
+    "byExtension": "Group by Extension",
+    "flatGrouping": "Flat Grouping"
+  },
+  "fileType": {
+    "video": "Video",
+    "image": "Image",
+    "audio": "Audio",
+    "application": "Application",
+    "document": "Document",
+    "source": "Source Code",
+    "config": "Config",
+    "archive": "Archive",
+    "other": "Other"
+  },
   "treemapView": {
     "noData": "No scan data available. Start scanning to visualize disk usage.",
-    "rootDirectory": "Root Directory",
+    "root": "Root",
     "copyPath": "Copy Path",
     "files": "files",
     "fileCount": "Files: {{count, number}}",
     "clickToDrillDown": "Click to drill down",
-    "clickToView": "Click any folder to view its contents. Rectangle size represents disk space usage."
+    "clickToView": "Click any folder to view its contents. Rectangle size represents disk space usage.",
+    "openInExplorer": "Open in Explorer"
   },
   "fileList": {
     "noData": "No scan data available.",
@@ -75,12 +95,14 @@
     "daysAgo": "{{days}}d ago",
     "weeksAgo": "{{weeks}}w ago",
     "monthsAgo": "{{months}}mo ago",
-    "yearsAgo": "{{years}}y ago"
+    "yearsAgo": "{{years}}y ago",
+    "openInExplorer": "Open in Explorer"
   },
   "common": {
     "close": "Close",
     "minimize": "Minimize",
     "maximize": "Maximize",
-    "unmaximize": "Unmaximize"
+    "unmaximize": "Unmaximize",
+    "cannotOpenExplorer": "Cannot open in Explorer"
   }
 }

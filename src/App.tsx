@@ -5,7 +5,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useTranslation } from 'react-i18next';
 import { ScanControl } from './components/ScanControl';
 import { ScanOptions } from './components/ScanOptions';
-import { SortOptions } from './components/SortOptions';
+import { GroupOptions } from './components/GroupOptions';
 import { TreemapView } from './components/TreemapView';
 import { FileList } from './components/FileList';
 import { useScanStore } from './store/scanStore';
@@ -275,7 +275,7 @@ function App() {
             <Box sx={{ width: 350, flexShrink: 0 }}>
               <ScanControl />
               <ScanOptions />
-              <SortOptions />
+              <GroupOptions />
             </Box>
 
             {/* 右侧主内容 - 可视化展示 */}

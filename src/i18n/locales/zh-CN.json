@@ -25,7 +25,7 @@
     "dirs": "Dirs",
     "size": "Size",
     "time": "Time",
-    "scanCompleted": "✓ 扫描完成，耗时 {{duration}}",
+    "scanCompleted": "扫描完成，耗时 {{duration}}",
     "scanDetails": "{{files}} 个文件，{{dirs}} 个目录，{{size}}"
   },
   "scanOptions": {
@@ -49,14 +49,34 @@
     "ascending": "升序",
     "descending": "降序"
   },
+  "groupOptions": {
+    "title": "分组选项",
+    "groupBy": "分组方式",
+    "none": "不分组",
+    "byType": "按常用类型分组",
+    "byExtension": "按扩展名分组",
+    "flatGrouping": "扁平分组"
+  },
+  "fileType": {
+    "video": "视频",
+    "image": "图片",
+    "audio": "音频",
+    "application": "应用程序",
+    "document": "文档",
+    "source": "源代码",
+    "config": "配置文件",
+    "archive": "压缩包",
+    "other": "其他"
+  },
   "treemapView": {
     "noData": "没有可用的扫描数据，开始扫描以可视化磁盘使用情况。",
-    "rootDirectory": "根目录",
+    "root": "根目录",
     "copyPath": "复制路径",
     "files": "files",
     "fileCount": "文件数：{{count, number}}",
     "clickToDrillDown": "点击以深入",
-    "clickToView": "点击任何文件夹以查看其内容。矩形大小代表磁盘空间使用情况。"
+    "clickToView": "点击任何文件夹以查看其内容。矩形大小代表磁盘空间使用情况。",
+    "openInExplorer": "在资源管理器中打开"
   },
   "fileList": {
     "noData": "没有可用的扫描数据。",
@@ -75,12 +95,14 @@
     "daysAgo": "{{days}}d ago",
     "weeksAgo": "{{weeks}}w ago",
     "monthsAgo": "{{months}}mo ago",
-    "yearsAgo": "{{years}}y ago"
+    "yearsAgo": "{{years}}y ago",
+    "openInExplorer": "在资源管理器中打开"
   },
   "common": {
     "close": "关闭",
     "minimize": "最小化",
     "maximize": "最大化",
-    "unmaximize": "还原"
+    "unmaximize": "还原",
+    "cannotOpenExplorer": "无法在资源管理器中打开"
   }
 }

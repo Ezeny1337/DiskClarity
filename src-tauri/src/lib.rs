@@ -1,6 +1,11 @@
+mod models;
+mod ntfs_io;
+mod mft_parser;
+mod tree_builder;
 mod mft_scanner;
 
-use mft_scanner::{MftScanner, ScanConfig, ScanProgress};
+use mft_scanner::MftScanner;
+use models::{ScanConfig, ScanProgress};
 
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -129,6 +134,38 @@ fn get_cpu_count() -> usize {
     num_cpus::get()
 }
 
+#[tauri::command]
+fn open_in_explorer(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        
+        // 规范化路径
+        let normalized_path = match std::path::Path::new(&path).canonicalize() {
+            Ok(p) => p.to_string_lossy().to_string(),
+            Err(e) => {
+                return Err(format!("Failed to canonicalize path: {}", e));
+            }
+        };
+        
+        let is_file = std::path::Path::new(&path).is_file();
+        
+        if is_file {
+            Command::new("explorer")
+                .args(&["/select,", &normalized_path])
+                .spawn()
+                .map_err(|e| format!("Failed to spawn explorer: {}", e))?;
+        } else {
+            Command::new("explorer")
+                .arg(&normalized_path)
+                .spawn()
+                .map_err(|e| format!("Failed to spawn explorer: {}", e))?;
+        }
+        
+        Ok(())
+    }
+}
+
 #[derive(serde::Serialize)]
 struct DiskInfo {
     path: String,
@@ -227,7 +264,8 @@ pub fn run() {
             cancel_scan,
             get_drives,
             get_cpu_count,
-            get_disk_info
+            get_disk_info,
+            open_in_explorer
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

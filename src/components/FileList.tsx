@@ -10,11 +10,18 @@ import {
   ListItemIcon,
   ListItemText,
   Button,
+  Menu,
+  MenuItem,
+  FormControl,
+  Select,
+  SelectChangeEvent,
 } from '@mui/material';
-import { Folder, InsertDriveFile, ExpandMore, ChevronRight, FolderOpen, ExpandCircleDown } from '@mui/icons-material';
+import { Folder, InsertDriveFile, ExpandMore, ChevronRight, FolderOpen, ExpandCircleDown, FolderOutlined } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useScanStore, FileNode } from '../store/scanStore';
 import { formatBytes, formatPercentage } from '../utils/format';
+import { invoke } from '@tauri-apps/api/core';
+import { groupFileNodes, sortGroupedNodes } from '../utils/grouping';
 
 // 格式化时间戳为相对日期字符串
 function formatDate(timestamp: number, t: (key: string, options?: any) => string): string {
@@ -46,32 +53,18 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [displayCount, setDisplayCount] = useState(maxInitialChildren);
-  const { sortField, sortOrder } = useScanStore();
+  const { sortField, sortOrder, groupBy, flatGrouping } = useScanStore();
   const hasChildren = node.is_dir && node.children && node.children.length > 0;
+  const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number } | null>(null);
 
-  // 根据存储设置排序子项
-  const sortedChildren = hasChildren
-    ? [...node.children].sort((a, b) => {
-        let comparison = 0;
-        
-        switch (sortField) {
-          case 'name':
-            comparison = a.name.localeCompare(b.name);
-            break;
-          case 'size':
-            comparison = a.size - b.size;
-            break;
-          case 'modified':
-            comparison = a.modified_time - b.modified_time;
-            break;
-          case 'fileCount':
-            comparison = a.file_count - b.file_count;
-            break;
-        }
-        
-        return sortOrder === 'asc' ? comparison : -comparison;
-      })
-    : [];
+  // 根据存储设置分组和排序子项
+  let sortedChildren = hasChildren ? [...node.children] : [];
+  
+  // 应用分组
+  sortedChildren = groupFileNodes(sortedChildren, groupBy, node.path, flatGrouping);
+  
+  // 应用排序
+  sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);
 
   // 限制显示的子项数量
   const displayedChildren = sortedChildren.slice(0, displayCount);
@@ -94,6 +87,26 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ mouseX: e.clientX, mouseY: e.clientY });
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  const handleOpenInExplorer = async () => {
+    try {
+      await invoke('open_in_explorer', { path: node.path });
+    } catch (error) {
+      const { setError } = useScanStore.getState();
+      setError(`${t('common.cannotOpenExplorer')}: ${error}`);
+    }
+    handleCloseContextMenu();
+  };
+
   return (
     <>
       <ListItem
@@ -104,7 +117,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
           borderColor: 'divider',
         }}
       >
-        <ListItemButton onClick={handleClick} onDoubleClick={handleNavigate}>
+        <ListItemButton onClick={handleClick} onDoubleClick={handleNavigate} onContextMenu={handleContextMenu}>
           <ListItemIcon sx={{ minWidth: 36 }}>
             {/* 目录或文件显示不同的图标 */}
             {node.is_dir ? (
@@ -151,7 +164,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
         <List component="div" disablePadding>
           {displayedChildren.map((child) => (
             <TreeItem
-              key={child.name}
+              key={child.path}
               node={child}
               level={level + 1}
               parentSize={node.size}
@@ -174,13 +187,38 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
           )}
         </List>
       )}
+      
+      {/* 右键菜单 */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorPosition={contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined}
+        anchorReference="anchorPosition"
+      >
+        <MenuItem onClick={handleOpenInExplorer}>
+          <FolderOutlined fontSize="small" sx={{ mr: 1 }} />
+          {t('fileList.openInExplorer')}
+        </MenuItem>
+      </Menu>
     </>
   );
 };
 
 export const FileList: React.FC = () => {
   const { t } = useTranslation();
-  const { currentNode, scanResult, setCurrentNode, breadcrumbs, setBreadcrumbs } = useScanStore();
+  const { 
+    currentNode, 
+    scanResult, 
+    setCurrentNode, 
+    breadcrumbs, 
+    setBreadcrumbs, 
+    sortField, 
+    sortOrder, 
+    groupBy,
+    flatGrouping,
+    setSortField,
+    setSortOrder,
+  } = useScanStore();
   const [displayCount, setDisplayCount] = useState(100);
 
   const displayNode = currentNode || scanResult;
@@ -188,6 +226,14 @@ export const FileList: React.FC = () => {
   const handleNavigate = (node: FileNode) => {
     setCurrentNode(node);
     setBreadcrumbs([...breadcrumbs, node]);
+  };
+
+  const handleSortFieldChange = (event: SelectChangeEvent) => {
+    setSortField(event.target.value as any);
+  };
+
+  const handleSortOrderChange = (event: SelectChangeEvent) => {
+    setSortOrder(event.target.value as any);
   };
 
   if (!displayNode) {
@@ -200,10 +246,16 @@ export const FileList: React.FC = () => {
     );
   }
 
-  // 按大小排序顶级子项
-  const sortedChildren = displayNode && displayNode.children
-    ? [...displayNode.children].sort((a, b) => b.size - a.size)
+  // 应用分组和排序到顶级子项
+  let sortedChildren = displayNode && displayNode.children
+    ? [...displayNode.children]
     : [];
+  
+  // 应用分组
+  sortedChildren = groupFileNodes(sortedChildren, groupBy, displayNode?.path, flatGrouping);
+  
+  // 应用排序
+  sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);
 
   // 限制显示的子项数量
   const displayedChildren = sortedChildren.slice(0, displayCount);
@@ -211,14 +263,33 @@ export const FileList: React.FC = () => {
 
   return (
     <Paper elevation={3} sx={{ mt: 3 }}>
-      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider', gap: 2, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <FolderOpen color="primary" />
           <Typography variant="h6">
             {t('fileList.title')}
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        
+        {/* 排序选项 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <Select value={sortField} onChange={handleSortFieldChange}>
+              <MenuItem value="name">{t('sortOptions.name')}</MenuItem>
+              <MenuItem value="size">{t('sortOptions.size')}</MenuItem>
+              <MenuItem value="modified">{t('sortOptions.modified')}</MenuItem>
+              <MenuItem value="fileCount">{t('sortOptions.fileCount')}</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 100 }}>
+            <Select value={sortOrder} onChange={handleSortOrderChange}>
+              <MenuItem value="asc">{t('sortOptions.ascending')}</MenuItem>
+              <MenuItem value="desc">{t('sortOptions.descending')}</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+        
+        <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
           <Chip label={`${formatBytes(displayNode.size || 0)}`} color="primary" size="small" />
           <Chip label={`${(displayNode.file_count || 0).toLocaleString()} ${t('fileList.files')}`} size="small" />
           <Chip label={`${(displayNode.dir_count || 0).toLocaleString()} ${t('fileList.folders')}`} size="small" />

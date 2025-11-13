@@ -27,6 +27,7 @@ export interface ScanConfig {
 
 export type SortField = 'name' | 'size' | 'modified' | 'fileCount';
 export type SortOrder = 'asc' | 'desc';
+export type GroupBy = 'none' | 'type' | 'extension';
 
 interface ScanState {
   scanResult: FileNode | null;
@@ -39,6 +40,8 @@ interface ScanState {
   breadcrumbs: FileNode[];
   sortField: SortField;
   sortOrder: SortOrder;
+  groupBy: GroupBy;
+  flatGrouping: boolean;
 
   scanConfig: ScanConfig;
 
@@ -52,6 +55,8 @@ interface ScanState {
   setScanConfig: (config: Partial<ScanConfig>) => void;
   setSortField: (field: SortField) => void;
   setSortOrder: (order: SortOrder) => void;
+  setGroupBy: (groupBy: GroupBy) => void;
+  setFlatGrouping: (flatGrouping: boolean) => void;
   reset: () => void;
 }
 
@@ -69,6 +74,8 @@ export const useScanStore = create<ScanState>((set) => ({
   breadcrumbs: [],
   sortField: 'size',
   sortOrder: 'desc',
+  groupBy: 'none',
+  flatGrouping: false,
   scanConfig: defaultConfig,
 
   setScanResult: (result) => set({ scanResult: result, currentNode: result }),
@@ -83,6 +90,8 @@ export const useScanStore = create<ScanState>((set) => ({
   })),
   setSortField: (field) => set({ sortField: field }),
   setSortOrder: (order) => set({ sortOrder: order }),
+  setGroupBy: (groupBy) => set({ groupBy }),
+  setFlatGrouping: (flatGrouping) => set({ flatGrouping }),
   reset: () => set({
     scanResult: null,
     scanProgress: null,

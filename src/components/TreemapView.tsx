@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Box, Paper, Typography, Breadcrumbs, Link, Chip, Stack, IconButton, Tooltip } from '@mui/material';
+import { Box, Paper, Typography, Breadcrumbs, Link, Chip, Stack, IconButton, Tooltip, Menu, MenuItem } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useScanStore, FileNode } from '../store/scanStore';
 import { formatBytes } from '../utils/format';
-import { Folder, InsertDriveFile, NavigateNext, ContentCopy } from '@mui/icons-material';
+import { Folder, InsertDriveFile, NavigateNext, ContentCopy, FolderOutlined } from '@mui/icons-material';
+import { invoke } from '@tauri-apps/api/core';
+import { groupFileNodes, sortGroupedNodes } from '../utils/grouping';
 
 interface TreemapRect {
   x: number;
@@ -32,10 +34,15 @@ export const TreemapView: React.FC = () => {
     setCurrentNode, 
     breadcrumbs, 
     setBreadcrumbs,
+    groupBy,
+    sortField,
+    sortOrder,
+    flatGrouping,
   } = useScanStore();
 
   const [hoveredRect, setHoveredRect] = useState<TreemapRect | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; node: FileNode } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const displayNode = currentNode || scanResult;
@@ -231,11 +238,17 @@ export const TreemapView: React.FC = () => {
     if (!displayNode || containerSize.width === 0 || containerSize.height === 0) return [];
 
     if (displayNode.children && displayNode.children.length > 0) {
-      return layoutRectangles(displayNode.children, containerSize.width, containerSize.height);
+      // 应用分组
+      let childrenToDisplay = groupFileNodes(displayNode.children, groupBy, displayNode.path, flatGrouping);
+      
+      // 应用排序
+      childrenToDisplay = sortGroupedNodes(childrenToDisplay, sortField, sortOrder);
+      
+      return layoutRectangles(childrenToDisplay, containerSize.width, containerSize.height);
     }
 
     return [];
-  }, [displayNode, containerSize]);
+  }, [displayNode, containerSize, groupBy, sortField, sortOrder, flatGrouping]);
 
   const handleRectClick = (rect: TreemapRect) => {
     if (!rect.node.is_dir) return;
@@ -265,6 +278,27 @@ export const TreemapView: React.FC = () => {
     setHoveredRect(null);
   };
 
+  const handleRectContextMenu = (e: React.MouseEvent<SVGRectElement>, rect: TreemapRect) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ mouseX: e.clientX, mouseY: e.clientY, node: rect.node });
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  const handleOpenInExplorer = async () => {
+    if (!contextMenu) return;
+    try {
+      await invoke('open_in_explorer', { path: contextMenu.node.path });
+    } catch (error) {
+      const { setError } = useScanStore.getState();
+      setError(`${t('common.cannotOpenExplorer')}: ${error}`);
+    }
+    handleCloseContextMenu();
+  };
+
   if (!displayNode) {
     return (
       <Paper elevation={3} sx={{ p: 3, mb: 3, height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -289,7 +323,7 @@ export const TreemapView: React.FC = () => {
                 sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
               >
                 <Folder fontSize="small" />
-                {t('treemapView.rootDirectory')}
+                {t('treemapView.root')}
               </Link>
               {breadcrumbs.map((node, index) => (
                 <Link
@@ -371,6 +405,7 @@ export const TreemapView: React.FC = () => {
                   onClick={() => handleRectClick(rect)}
                   onMouseMove={(e) => handleMouseMove(e, rect)}
                   onMouseLeave={handleMouseLeave}
+                  onContextMenu={(e) => handleRectContextMenu(e, rect)}
                 />
                 
                 {/* 如果空间足够总是显示名称 */}
@@ -453,6 +488,19 @@ export const TreemapView: React.FC = () => {
       <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
         {t('treemapView.clickToView')}
       </Typography>
+
+      {/* 右键菜单 */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorPosition={contextMenu ? { top: contextMenu.mouseY, left: contextMenu.mouseX } : undefined}
+        anchorReference="anchorPosition"
+      >
+        <MenuItem onClick={handleOpenInExplorer}>
+          <FolderOutlined fontSize="small" sx={{ mr: 1 }} />
+          {t('treemapView.openInExplorer')}
+        </MenuItem>
+      </Menu>
     </Paper>
   );
 };
