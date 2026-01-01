@@ -5,7 +5,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Rust-orange?logo=rust" />
   <img src="https://img.shields.io/badge/Language-TypeScript-blue?logo=typescript" />
-  <img src="https://img.shields.io/badge/Language-React-cyan?logo=react" />
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue" />
   <img src="https://img.shields.io/github/v/release/Ezeny1337/DiskClarity?label=Release&color=green" />
 </p>
@@ -22,7 +21,7 @@
 
 ## 📖 Overview
 
-**DiskClarity** is an an open source, efficient and lightweight disk space analysis tool. It provides users with a clear and intuitive way to visualize disk usage, identify large files and directories, and optimize storage space effectively.
+**DiskClarity** is an open source, efficient and lightweight disk space analysis tool. It provides users with a clear and intuitive way to visualize disk usage, identify large files and directories, and optimize storage space effectively.
 
 ### 🚀 Features
 
@@ -31,7 +30,7 @@
 - **NTFS MFT Parsing**: Directly read NTFS Master File Table (MFT) for efficient scanning
 - **Parallel Processing**: Multi-threaded parallel scanning using Rayon library
 - **Asynchronous Processing**: Non-blocking, high-efficiency scanning
-- **Transmission Optimization**: MessagePack + gzip reduces frontend-backend data transfer
+- **Transmission Optimization**: Reduces frontend-backend data transfer as much as possible
 
 **2. Modern Interface**
 - Modern, beautiful, responsive Web UI built with React + Material-UI
@@ -48,9 +47,11 @@
 
 ## 🛠️ Support
 
-If you want to report bugs or suggest new features, you can [open an issue on Github](https://github.com/Ezeny1337/DiskClarity/issues).
+If you want to report bugs, you can [open an issue on Github](https://github.com/Ezeny1337/DiskClarity/issues).
 
-If you need help using DiskClarity, please contact me on Discord: **ez3nyck**
+Discord: **ez3nyck**
+
+QQ: 3443374192
 
 ## ⚖️ License
 

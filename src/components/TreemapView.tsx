@@ -40,6 +40,30 @@ export const TreemapView: React.FC = () => {
     flatGrouping,
   } = useScanStore();
 
+  const buildBreadcrumbs = useCallback((root: FileNode | null, targetPath: string): FileNode[] => {
+    if (!root || !targetPath) return [];
+    if (root.path === targetPath) return [];
+
+    const stack: Array<{ node: FileNode; trail: FileNode[] }> = [{ node: root, trail: [] }];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+
+      if (current.node.path === targetPath) {
+        return current.trail;
+      }
+
+      if (current.node.children && current.node.children.length > 0) {
+        for (let i = current.node.children.length - 1; i >= 0; i--) {
+          const child = current.node.children[i];
+          stack.push({ node: child, trail: [...current.trail, child] });
+        }
+      }
+    }
+
+    return [];
+  }, []);
+
   const tGrouping = useCallback((key: string) => t(key), [t]);
 
   const [hoveredRect, setHoveredRect] = useState<TreemapRect | null>(null);
@@ -48,6 +72,13 @@ export const TreemapView: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const displayNode = currentNode || scanResult;
+
+  const driveLabel = useMemo(() => {
+    const rootPath = scanResult?.path || '';
+    const match = rootPath.match(/^([A-Za-z]):/);
+    if (match?.[1]) return match[1].toUpperCase();
+    return t('treemapView.root');
+  }, [scanResult?.path, t]);
 
   // 正方形化树状图算法与对数缩放
   // 正方形化算法会优化矩形的长宽比，使其更接近正方形
@@ -256,7 +287,7 @@ export const TreemapView: React.FC = () => {
     if (!rect.node.is_dir) return;
 
     setCurrentNode(rect.node);
-    setBreadcrumbs([...breadcrumbs, rect.node]);
+    setBreadcrumbs(buildBreadcrumbs(scanResult, rect.node.path));
   };
 
   // 处理面包屑导航点击
@@ -266,7 +297,7 @@ export const TreemapView: React.FC = () => {
       setBreadcrumbs([]);
     } else {
       const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
-      setCurrentNode(breadcrumbs[index]);
+      setCurrentNode(newBreadcrumbs[index]);
       setBreadcrumbs(newBreadcrumbs);
     }
   };
@@ -325,7 +356,7 @@ export const TreemapView: React.FC = () => {
                 sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
               >
                 <Folder fontSize="small" />
-                {t('treemapView.root')}
+                {driveLabel}
               </Link>
               {breadcrumbs.map((node, index) => (
                 <Link

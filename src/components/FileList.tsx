@@ -4,6 +4,11 @@ import {
   Typography,
   Box,
   Chip,
+  Breadcrumbs,
+  Link,
+  Stack,
+  IconButton,
+  Tooltip,
   List,
   ListItem,
   ListItemButton,
@@ -16,7 +21,7 @@ import {
   Select,
   SelectChangeEvent,
 } from '@mui/material';
-import { Folder, InsertDriveFile, ExpandMore, ChevronRight, FolderOpen, ExpandCircleDown, FolderOutlined } from '@mui/icons-material';
+import { Folder, InsertDriveFile, ExpandMore, ChevronRight, ExpandCircleDown, FolderOutlined, NavigateNext, ContentCopy } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useScanStore, FileNode } from '../store/scanStore';
 import { formatBytes, formatPercentage } from '../utils/format';
@@ -225,9 +230,51 @@ export const FileList: React.FC = () => {
 
   const displayNode = currentNode || scanResult;
 
+  const buildBreadcrumbs = useCallback((root: FileNode | null, targetPath: string): FileNode[] => {
+    if (!root || !targetPath) return [];
+    if (root.path === targetPath) return [];
+
+    const stack: Array<{ node: FileNode; trail: FileNode[] }> = [{ node: root, trail: [] }];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+
+      if (current.node.path === targetPath) {
+        return current.trail;
+      }
+
+      if (current.node.children && current.node.children.length > 0) {
+        for (let i = current.node.children.length - 1; i >= 0; i--) {
+          const child = current.node.children[i];
+          stack.push({ node: child, trail: [...current.trail, child] });
+        }
+      }
+    }
+
+    return [];
+  }, []);
+
+  const driveLabel = React.useMemo(() => {
+    const rootPath = scanResult?.path || '';
+    const match = rootPath.match(/^([A-Za-z]):/);
+    if (match?.[1]) return match[1].toUpperCase();
+    return t('treemapView.root');
+  }, [scanResult?.path, t]);
+
   const handleNavigate = (node: FileNode) => {
     setCurrentNode(node);
-    setBreadcrumbs([...breadcrumbs, node]);
+    setBreadcrumbs(buildBreadcrumbs(scanResult, node.path));
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    if (index === -1) {
+      setCurrentNode(scanResult);
+      setBreadcrumbs([]);
+    } else {
+      const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
+      setCurrentNode(newBreadcrumbs[index]);
+      setBreadcrumbs(newBreadcrumbs);
+    }
   };
 
   const handleSortFieldChange = (event: SelectChangeEvent) => {
@@ -265,14 +312,48 @@ export const FileList: React.FC = () => {
 
   return (
     <Paper elevation={3} sx={{ mt: 3 }}>
-      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider', gap: 2, flexWrap: 'wrap' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <FolderOpen color="primary" />
-          <Typography variant="h6">
-            {t('fileList.title')}
-          </Typography>
+      <Stack spacing={2} sx={{ p: 2, pb: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+            <Breadcrumbs separator={<NavigateNext fontSize="small" />}>
+              <Link
+                component="button"
+                variant="body1"
+                onClick={() => handleBreadcrumbClick(-1)}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+              >
+                <Folder fontSize="small" />
+                {driveLabel}
+              </Link>
+              {breadcrumbs.map((node, index) => (
+                <Link
+                  key={node.path}
+                  component="button"
+                  variant="body1"
+                  onClick={() => handleBreadcrumbClick(index)}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                >
+                  {node.is_dir ? <Folder fontSize="small" /> : <InsertDriveFile fontSize="small" />}
+                  {node.name}
+                </Link>
+              ))}
+            </Breadcrumbs>
+            <Tooltip title={t('treemapView.copyPath')}>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  const path = displayNode?.path || '';
+                  navigator.clipboard.writeText(path);
+                }}
+              >
+                <ContentCopy fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
-        
+      </Stack>
+
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider', gap: 2, flexWrap: 'wrap' }}>
         {/* 排序选项 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>

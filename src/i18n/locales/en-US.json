@@ -107,6 +107,14 @@
     "minimize": "Minimize",
     "maximize": "Maximize",
     "unmaximize": "Unmaximize",
-    "cannotOpenExplorer": "Cannot open in Explorer"
+    "cannotOpenExplorer": "Cannot open in Explorer",
+    "time": {
+      "millisecond": "{{count}}ms",
+      "second": "{{count}}s",
+      "minute": "{{minutes}}m",
+      "minuteWithSeconds": "{{minutes}}m {{seconds}}s",
+      "hour": "{{hours}}h",
+      "hourWithMinutes": "{{hours}}h {{minutes}}m"
+    }
   }
 }

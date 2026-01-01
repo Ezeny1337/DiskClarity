@@ -5,7 +5,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Rust-orange?logo=rust" />
   <img src="https://img.shields.io/badge/Language-TypeScript-blue?logo=typescript" />
-  <img src="https://img.shields.io/badge/Language-React-cyan?logo=react" />
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue" />
   <img src="https://img.shields.io/github/v/release/Ezeny1337/DiskClarity?label=Release&color=green" />
 </p>
@@ -31,7 +30,7 @@
 - **NTFS MFT 解析**: 直接读取 NTFS 的主文件表 (MFT) 进行高效扫描
 - **并行处理**: 使用 Rayon 库实现多线程并行扫描
 - **异步处理**: 非阻塞、高效率的扫描
-- **传输优化**: MessagePack + gzip 减少前后端数据传输量
+- **传输优化**: 最大程度减少前后端数据传输量
 
 **二、现代化界面**
 - React + Material-UI 构建的现代化、美观、响应迅速的 Web UI
@@ -50,6 +49,8 @@
 如果您想要报告错误，可以 [在 Github 上创建 issue](https://github.com/Ezeny1337/DiskClarity/issues)。
 
 Discord ：**ez3nyck**
+
+QQ: 3443374192
 
 ## ⚖️ License
 

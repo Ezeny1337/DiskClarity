@@ -107,6 +107,14 @@
     "minimize": "最小化",
     "maximize": "最大化",
     "unmaximize": "还原",
-    "cannotOpenExplorer": "无法在资源管理器中打开"
+    "cannotOpenExplorer": "无法在资源管理器中打开",
+    "time": {
+      "millisecond": "{{count}}毫秒",
+      "second": "{{count}}秒",
+      "minute": "{{minutes}}分",
+      "minuteWithSeconds": "{{minutes}}分 {{seconds}}秒",
+      "hour": "{{hours}}小时",
+      "hourWithMinutes": "{{hours}}小时 {{minutes}}分"
+    }
   }
 }

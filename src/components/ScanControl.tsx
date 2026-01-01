@@ -240,7 +240,7 @@ export const ScanControl: React.FC = () => {
             </Typography>
             <Typography variant="body2">
               <strong>{t('scanControl.size')}:</strong> {formatBytes(scanProgress.total_size || 0)} | 
-              <strong>{t('scanControl.time')}:</strong> {formatDuration(scanProgress.duration_ms || 0)}
+              <strong>{t('scanControl.time')}:</strong> {formatDuration(scanProgress.duration_ms || 0, t)}
             </Typography>
           </Paper>
         )}
@@ -249,7 +249,7 @@ export const ScanControl: React.FC = () => {
         {!isScanning && scanProgress && scanProgress.is_complete && (
           <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
             <Typography variant="body2" fontWeight="bold">
-              ✓ {t('scanControl.scanCompleted', { duration: formatDuration(scanProgress.duration_ms || 0) })}
+              ✓ {t('scanControl.scanCompleted', { duration: formatDuration(scanProgress.duration_ms || 0, t) })}
             </Typography>
             <Typography variant="caption">
               {t('scanControl.scanDetails', { 
@@ -284,15 +284,25 @@ function getStageText(stage: string, t: (key: string) => string): string {
 }
 
 // 格式化时间间隔为可读的字符串
-function formatDuration(ms: number): string {
-
-  if (ms < 1000) return `${ms}ms`;
+function formatDuration(ms: number, t: (key: string, options?: any) => string): string {
+  if (ms < 1000) return t('common.time.millisecond', { count: ms });
+  
   const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}秒`;
+  if (seconds < 60) return t('common.time.second', { count: seconds });
+  
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  if (minutes < 60) return `${minutes}分 ${remainingSeconds}秒`;
+  
+  if (minutes < 60) {
+    return remainingSeconds > 0 
+      ? t('common.time.minuteWithSeconds', { minutes, seconds: remainingSeconds })
+      : t('common.time.minute', { minutes });
+  }
+  
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  return `${hours}小时 ${remainingMinutes}分`;
+  
+  return remainingMinutes > 0 
+    ? t('common.time.hourWithMinutes', { hours, minutes: remainingMinutes })
+    : t('common.time.hour', { hours });
 }
