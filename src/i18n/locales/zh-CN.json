@@ -1,7 +1,12 @@
 {
   "app": {
     "title": "DiskClarity",
-    "logoAlt": "DiskClarity"
+    "logoAlt": "DiskClarity",
+    "updateAvailable": "发现新版本：v{{version}}",
+    "download": "下载",
+    "checkUpdates": "检查更新",
+    "upToDate": "已是最新版本",
+    "updateCheckFailed": "检查更新失败"
   },
   "scanControl": {
     "title": "扫描目标",
@@ -101,6 +106,33 @@
     "monthsAgo": "{{months}}mo ago",
     "yearsAgo": "{{years}}y ago",
     "openInExplorer": "在资源管理器中打开"
+  },
+  "home": {
+    "title": "首页",
+    "diskScan": "磁盘扫描",
+    "snapshot": "快照",
+    "snapshotAnalysis": "快照分析"
+  },
+  "diskSelector": {
+    "title": "选择要扫描的磁盘",
+    "loading": "加载磁盘信息中...",
+    "capacity": "总容量",
+    "used": "已使用",
+    "available": "可用空间",
+    "usage": "使用率"
+  },
+  "scanView": {
+    "files": "文件",
+    "dirs": "目录",
+    "size": "大小",
+    "time": "时间"
+  },
+  "tabs": {
+    "newTab": "新建标签页"
+  },
+  "snapshot": {
+    "comingSoon": "即将推出",
+    "description": "快照分析功能正在开发中，敬请期待！"
   },
   "common": {
     "close": "关闭",

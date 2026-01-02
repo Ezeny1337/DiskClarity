@@ -31,7 +31,7 @@ pub fn build_tree(entries: Vec<MftFileEntry>, root_path: &str) -> Result<FileNod
         }
         
         entry_map.insert(file_ref, entry);
-        children_map.entry(parent_ref).or_insert_with(Vec::new).push(file_ref);
+        children_map.entry(parent_ref).or_default().push(file_ref);
     }
     
     // 处理需要回退的文件（并行获取大小）
@@ -169,16 +169,12 @@ fn get_file_size_from_entry(
     let root_ref = 5u64;
     
     // 从文件向上遍历到根目录，收集路径部分
-    loop {
-        if let Some(entry) = entry_map.get(&current_ref) {
-            path_parts.push(entry.name.clone());
-            if current_ref == root_ref || entry.parent_ref == current_ref {
-                break;
-            }
-            current_ref = entry.parent_ref;
-        } else {
+    while let Some(entry) = entry_map.get(&current_ref) {
+        path_parts.push(entry.name.clone());
+        if current_ref == root_ref || entry.parent_ref == current_ref {
             break;
         }
+        current_ref = entry.parent_ref;
     }
     
     // 反转路径部分（从根到文件）

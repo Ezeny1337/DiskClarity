@@ -20,13 +20,16 @@ import {
   FormControl,
   Select,
   SelectChangeEvent,
+  alpha,
 } from '@mui/material';
 import { Folder, InsertDriveFile, ExpandMore, ChevronRight, ExpandCircleDown, FolderOutlined, NavigateNext, ContentCopy } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { useScanStore, FileNode } from '../store/scanStore';
+import { FileNode } from '../store/scanStore';
+import { useTabStore } from '../store/tabStore';
 import { formatBytes, formatPercentage } from '../utils/format';
 import { invoke } from '@tauri-apps/api/core';
 import { groupFileNodes, sortGroupedNodes } from '../utils/grouping';
+import { buildBreadcrumbs, updateCurrentTabData } from '../utils/tabNavigation';
 
 // 格式化时间戳为相对日期字符串
 function formatDate(timestamp: number, t: (key: string, options?: any) => string): string {
@@ -59,7 +62,12 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
   const tGrouping = useCallback((key: string) => t(key), [t]);
   const [expanded, setExpanded] = useState(false);
   const [displayCount, setDisplayCount] = useState(maxInitialChildren);
-  const { sortField, sortOrder, groupBy, flatGrouping } = useScanStore();
+  const { getActiveTab, updateCurrentTab } = useTabStore();
+  const activeTab = getActiveTab();
+  const sortField = activeTab?.data?.sortField || 'size';
+  const sortOrder = activeTab?.data?.sortOrder || 'desc';
+  const groupBy = activeTab?.data?.groupBy || 'none';
+  const flatGrouping = activeTab?.data?.flatGrouping || false;
   const hasChildren = node.is_dir && node.children && node.children.length > 0;
   const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number } | null>(null);
 
@@ -107,8 +115,12 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
     try {
       await invoke('open_in_explorer', { path: node.path });
     } catch (error) {
-      const { setError } = useScanStore.getState();
-      setError(`${t('common.cannotOpenExplorer')}: ${error}`);
+      updateCurrentTab({
+        data: {
+          ...activeTab?.data,
+          error: `${t('common.cannotOpenExplorer')}: ${error}`,
+        },
+      });
     }
     handleCloseContextMenu();
   };
@@ -213,46 +225,29 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
 export const FileList: React.FC = () => {
   const { t } = useTranslation();
   const tGrouping = useCallback((key: string) => t(key), [t]);
-  const { 
-    currentNode, 
-    scanResult, 
-    setCurrentNode, 
-    breadcrumbs, 
-    setBreadcrumbs, 
-    sortField, 
-    sortOrder, 
-    groupBy,
-    flatGrouping,
-    setSortField,
-    setSortOrder,
-  } = useScanStore();
+  const activeTabId = useTabStore((state) => state.activeTabId);
+  const tabs = useTabStore((state) => state.tabs);
+  const activeTab = React.useMemo(() => tabs.find((tab) => tab.id === activeTabId) || null, [tabs, activeTabId]);
+  
+  const currentNode = activeTab?.data?.currentNode || null;
+  const scanResult = activeTab?.data?.scanResult || null;
+  const breadcrumbs = activeTab?.data?.breadcrumbs || [];
+  const sortField = activeTab?.data?.sortField || 'size';
+  const sortOrder = activeTab?.data?.sortOrder || 'desc';
+  const groupBy = activeTab?.data?.groupBy || 'none';
+  const flatGrouping = activeTab?.data?.flatGrouping || false;
+
+  const setSortField = (field: any) => {
+    updateCurrentTabData({ sortField: field });
+  };
+
+  const setSortOrder = (order: any) => {
+    updateCurrentTabData({ sortOrder: order });
+  };
+  
   const [displayCount, setDisplayCount] = useState(100);
 
   const displayNode = currentNode || scanResult;
-
-  const buildBreadcrumbs = useCallback((root: FileNode | null, targetPath: string): FileNode[] => {
-    if (!root || !targetPath) return [];
-    if (root.path === targetPath) return [];
-
-    const stack: Array<{ node: FileNode; trail: FileNode[] }> = [{ node: root, trail: [] }];
-    while (stack.length > 0) {
-      const current = stack.pop();
-      if (!current) continue;
-
-      if (current.node.path === targetPath) {
-        return current.trail;
-      }
-
-      if (current.node.children && current.node.children.length > 0) {
-        for (let i = current.node.children.length - 1; i >= 0; i--) {
-          const child = current.node.children[i];
-          stack.push({ node: child, trail: [...current.trail, child] });
-        }
-      }
-    }
-
-    return [];
-  }, []);
 
   const driveLabel = React.useMemo(() => {
     const rootPath = scanResult?.path || '';
@@ -262,18 +257,18 @@ export const FileList: React.FC = () => {
   }, [scanResult?.path, t]);
 
   const handleNavigate = (node: FileNode) => {
-    setCurrentNode(node);
-    setBreadcrumbs(buildBreadcrumbs(scanResult, node.path));
+    updateCurrentTabData({
+      currentNode: node,
+      breadcrumbs: buildBreadcrumbs(scanResult, node.path),
+    });
   };
 
   const handleBreadcrumbClick = (index: number) => {
     if (index === -1) {
-      setCurrentNode(scanResult);
-      setBreadcrumbs([]);
+      updateCurrentTabData({ currentNode: scanResult, breadcrumbs: [] });
     } else {
       const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
-      setCurrentNode(newBreadcrumbs[index]);
-      setBreadcrumbs(newBreadcrumbs);
+      updateCurrentTabData({ currentNode: newBreadcrumbs[index], breadcrumbs: newBreadcrumbs });
     }
   };
 
@@ -311,16 +306,34 @@ export const FileList: React.FC = () => {
   const hasMore = sortedChildren.length > displayCount;
 
   return (
-    <Paper elevation={3} sx={{ mt: 3 }}>
+    <Paper 
+      elevation={0} 
+      sx={{ 
+        mt: 3,
+        background: alpha('#ffffff', 0.15),
+        backdropFilter: 'blur(10px)',
+        border: `1px solid ${alpha('#ffffff', 0.2)}`,
+        borderRadius: 2,
+      }}
+    >
       <Stack spacing={2} sx={{ p: 2, pb: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-            <Breadcrumbs separator={<NavigateNext fontSize="small" />}>
+            <Breadcrumbs 
+              separator={<NavigateNext fontSize="small" sx={{ color: alpha('#ffffff', 0.5) }} />}
+              sx={{ color: 'white' }}
+            >
               <Link
                 component="button"
                 variant="body1"
                 onClick={() => handleBreadcrumbClick(-1)}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 0.5,
+                  color: 'white',
+                  '&:hover': { color: alpha('#ffffff', 0.8) },
+                }}
               >
                 <Folder fontSize="small" />
                 {driveLabel}
@@ -331,7 +344,13 @@ export const FileList: React.FC = () => {
                   component="button"
                   variant="body1"
                   onClick={() => handleBreadcrumbClick(index)}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 0.5,
+                    color: 'white',
+                    '&:hover': { color: alpha('#ffffff', 0.8) },
+                  }}
                 >
                   {node.is_dir ? <Folder fontSize="small" /> : <InsertDriveFile fontSize="small" />}
                   {node.name}
@@ -345,6 +364,7 @@ export const FileList: React.FC = () => {
                   const path = displayNode?.path || '';
                   navigator.clipboard.writeText(path);
                 }}
+                sx={{ color: 'white' }}
               >
                 <ContentCopy fontSize="small" />
               </IconButton>
@@ -353,29 +373,135 @@ export const FileList: React.FC = () => {
         </Box>
       </Stack>
 
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider', gap: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${alpha('#ffffff', 0.2)}`, gap: 2, flexWrap: 'wrap' }}>
         {/* 排序选项 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <Select value={sortField} onChange={handleSortFieldChange}>
-              <MenuItem value="name">{t('sortOptions.name')}</MenuItem>
-              <MenuItem value="size">{t('sortOptions.size')}</MenuItem>
-              <MenuItem value="modified">{t('sortOptions.modified')}</MenuItem>
-              <MenuItem value="fileCount">{t('sortOptions.fileCount')}</MenuItem>
+            <Select 
+              value={sortField} 
+              onChange={handleSortFieldChange}
+              sx={{
+                color: 'white',
+                '.MuiOutlinedInput-notchedOutline': {
+                  borderColor: alpha('#ffffff', 0.3),
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: alpha('#ffffff', 0.5),
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'white',
+                },
+                '.MuiSvgIcon-root': {
+                  color: 'white',
+                },
+              }}
+              MenuProps={{
+                transitionDuration: 120,
+                PaperProps: {
+                  sx: {
+                    background: alpha('#1a1a2e', 0.95),
+                    backdropFilter: 'blur(20px)',
+                    border: `1px solid ${alpha('#ffffff', 0.2)}`,
+                    '& .MuiMenuItem-root': {
+                      color: 'white',
+                      transition: 'background-color 80ms ease',
+                      '&:hover': {
+                        background: alpha('#ffffff', 0.1),
+                      },
+                      '&.Mui-selected': {
+                        background: alpha('#ffffff', 0.2),
+                        '&:hover': {
+                          background: alpha('#ffffff', 0.25),
+                        },
+                      },
+                    },
+                  },
+                },
+              }}
+            >
+              <MenuItem disableRipple value="name">{t('sortOptions.name')}</MenuItem>
+              <MenuItem disableRipple value="size">{t('sortOptions.size')}</MenuItem>
+              <MenuItem disableRipple value="modified">{t('sortOptions.modified')}</MenuItem>
+              <MenuItem disableRipple value="fileCount">{t('sortOptions.fileCount')}</MenuItem>
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 100 }}>
-            <Select value={sortOrder} onChange={handleSortOrderChange}>
-              <MenuItem value="asc">{t('sortOptions.ascending')}</MenuItem>
-              <MenuItem value="desc">{t('sortOptions.descending')}</MenuItem>
+            <Select 
+              value={sortOrder} 
+              onChange={handleSortOrderChange}
+              sx={{
+                color: 'white',
+                '.MuiOutlinedInput-notchedOutline': {
+                  borderColor: alpha('#ffffff', 0.3),
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: alpha('#ffffff', 0.5),
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'white',
+                },
+                '.MuiSvgIcon-root': {
+                  color: 'white',
+                },
+              }}
+              MenuProps={{
+                transitionDuration: 120,
+                PaperProps: {
+                  sx: {
+                    background: alpha('#1a1a2e', 0.95),
+                    backdropFilter: 'blur(20px)',
+                    border: `1px solid ${alpha('#ffffff', 0.2)}`,
+                    '& .MuiMenuItem-root': {
+                      color: 'white',
+                      transition: 'background-color 80ms ease',
+                      '&:hover': {
+                        background: alpha('#ffffff', 0.1),
+                      },
+                      '&.Mui-selected': {
+                        background: alpha('#ffffff', 0.2),
+                        '&:hover': {
+                          background: alpha('#ffffff', 0.25),
+                        },
+                      },
+                    },
+                  },
+                },
+              }}
+            >
+              <MenuItem disableRipple value="asc">{t('sortOptions.ascending')}</MenuItem>
+              <MenuItem disableRipple value="desc">{t('sortOptions.descending')}</MenuItem>
             </Select>
           </FormControl>
         </Box>
         
         <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-          <Chip label={`${formatBytes(displayNode.size || 0)}`} color="primary" size="small" />
-          <Chip label={`${(displayNode.file_count || 0).toLocaleString()} ${t('fileList.files')}`} size="small" />
-          <Chip label={`${(displayNode.dir_count || 0).toLocaleString()} ${t('fileList.folders')}`} size="small" />
+          <Chip 
+            label={`${formatBytes(displayNode.size || 0)}`} 
+            size="small"
+            sx={{
+              background: alpha('#ffffff', 0.2),
+              color: 'white',
+              border: `1px solid ${alpha('#ffffff', 0.3)}`,
+            }}
+          />
+          <Chip 
+            label={`${(displayNode.file_count || 0).toLocaleString()} ${t('fileList.files')}`} 
+            size="small"
+            sx={{
+              background: alpha('#ffffff', 0.2),
+              color: 'white',
+              border: `1px solid ${alpha('#ffffff', 0.3)}`,
+            }}
+          />
+          <Chip 
+            label={`${(displayNode.dir_count || 0).toLocaleString()} ${t('fileList.folders')}`} 
+            size="small"
+            sx={{
+              background: alpha('#ffffff', 0.2),
+              color: 'white',
+              border: `1px solid ${alpha('#ffffff', 0.3)}`,
+            }}
+          />
         </Box>
       </Box>
 
@@ -387,29 +513,29 @@ export const FileList: React.FC = () => {
             alignItems: 'center',
             px: 2,
             py: 1,
-            bgcolor: 'background.paper',
-            borderBottom: 1,
-            borderColor: 'divider',
+            background: alpha('#ffffff', 0.15),
+            backdropFilter: 'blur(20px)',
+            borderBottom: `1px solid ${alpha('#ffffff', 0.2)}`,
             position: 'sticky',
             top: 0,
-            zIndex: 10,
+            zIndex: 100,
           }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="caption" fontWeight="bold" color="text.secondary">
+            <Typography variant="caption" fontWeight="bold" sx={{ color: 'white' }}>
               {t('fileList.name')}
             </Typography>
           </Box>
-          <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ minWidth: 100, textAlign: 'right', mr: 1 }}>
+          <Typography variant="caption" fontWeight="bold" sx={{ minWidth: 100, textAlign: 'right', mr: 1, color: 'white' }}>
             {t('fileList.size')}
           </Typography>
-          <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ minWidth: 60, textAlign: 'right', mr: 1 }}>
+          <Typography variant="caption" fontWeight="bold" sx={{ minWidth: 60, textAlign: 'right', mr: 1, color: 'white' }}>
             {t('fileList.percentage')}
           </Typography>
-          <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ minWidth: 80, textAlign: 'right', mr: 1 }}>
+          <Typography variant="caption" fontWeight="bold" sx={{ minWidth: 80, textAlign: 'right', mr: 1, color: 'white' }}>
             {t('fileList.fileCount')}
           </Typography>
-          <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ minWidth: 100, textAlign: 'right' }}>
+          <Typography variant="caption" fontWeight="bold" sx={{ minWidth: 100, textAlign: 'right', color: 'white' }}>
             {t('fileList.modifiedTime')}
           </Typography>
         </Box>

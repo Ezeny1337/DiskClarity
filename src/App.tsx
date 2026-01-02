@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ThemeProvider, createTheme, CssBaseline, Container, Box, Alert, IconButton, Typography } from '@mui/material';
-import { Close, CropSquare, Remove, FullscreenExit } from '@mui/icons-material';
+import { ThemeProvider, createTheme, CssBaseline, Box, Alert, IconButton, Typography, Snackbar, Button, Tooltip, CircularProgress } from '@mui/material';
+import { Close, CropSquare, Remove, FullscreenExit, SystemUpdateAlt } from '@mui/icons-material';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useTranslation } from 'react-i18next';
-import { ScanControl } from './components/ScanControl';
-import { ScanOptions } from './components/ScanOptions';
-import { GroupOptions } from './components/GroupOptions';
-import { TreemapView } from './components/TreemapView';
-import { FileList } from './components/FileList';
 import { useScanStore } from './store/scanStore';
+import { useTabStore } from './store/tabStore';
+import { checkForUpdates } from './services/updateService';
+import { TabBar } from './components/TabBar';
+import { HomePage } from './components/HomePage';
+import { DiskScanTab } from './components/DiskScanTab';
+import { SnapshotTab } from './components/SnapshotTab.tsx';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 const appWindow = WebviewWindow.getCurrent();
 
@@ -96,8 +98,48 @@ const theme = createTheme({
 
 function App() {
   const { t } = useTranslation();
-  const { error } = useScanStore();
+  const error = useScanStore((state) => state.error);
+  const { tabs, activeTabId } = useTabStore();
   const [isMaximized, setIsMaximized] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url?: string } | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+  const handleCheckUpdates = async () => {
+    if (isCheckingUpdate) return;
+    setIsCheckingUpdate(true);
+    try {
+      const info = await checkForUpdates();
+      if (info.hasUpdate) {
+        setUpdateInfo({ version: info.latestVersion, url: info.downloadUrl });
+      } else {
+        setUpdateStatus({ message: t('app.upToDate'), severity: 'success' });
+      }
+    } catch {
+      setUpdateStatus({ message: t('app.updateCheckFailed'), severity: 'error' });
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const renderTabContent = () => {
+    const activeTab = tabs.find((tab) => tab.id === activeTabId);
+    
+    if (!activeTab) {
+      return <HomePage />;
+    }
+
+    switch (activeTab.type) {
+      case 'home':
+        return <HomePage />;
+      case 'disk-scan':
+        return <DiskScanTab />;
+      case 'snapshot-analysis':
+        return <SnapshotTab />;
+      default:
+        return <HomePage />;
+    }
+  };
   
   // 监听窗口最大化状态变化
   useEffect(() => {
@@ -207,6 +249,11 @@ function App() {
               {t('app.title')}
             </Typography>
           </Box>
+
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', px: 2 }}>
+            <TabBar />
+          </Box>
+          
           <Box
             sx={{
               display: 'flex',
@@ -215,6 +262,25 @@ function App() {
             }}
           >
             <LanguageSwitcher />
+            <Tooltip title={t('app.checkUpdates')}>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleCheckUpdates}
+                  disabled={isCheckingUpdate}
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': { bgcolor: 'action.hover' },
+                  }}
+                >
+                  {isCheckingUpdate ? (
+                    <CircularProgress size={18} />
+                  ) : (
+                    <SystemUpdateAlt sx={{ fontSize: 18 }} />
+                  )}
+                </IconButton>
+              </span>
+            </Tooltip>
             <IconButton
               size="small"
               onClick={handleMinimize}
@@ -255,36 +321,80 @@ function App() {
         {/* 主内容区域 */}
         <Box sx={{ 
           flex: 1, 
-          overflow: 'auto', 
-          py: 3,
+          overflow: 'hidden',
           minHeight: 0,
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          position: 'relative',
         }}>
-          <Container maxWidth={false} sx={{ px: isMaximized ? 4 : 2 }}>
+          <Snackbar
+            open={updateInfo !== null}
+            onClose={() => setUpdateInfo(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            autoHideDuration={8000}
+          >
+            <Alert
+              severity="info"
+              onClose={() => setUpdateInfo(null)}
+              action={
+                updateInfo?.url ? (
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      const url = updateInfo?.url;
+                      if (!url) return;
+                      try {
+                        openUrl(url);
+                      } catch {
+                      }
+                      setUpdateInfo(null);
+                    }}
+                  >
+                    {t('app.download')}
+                  </Button>
+                ) : undefined
+              }
+              sx={{ alignItems: 'center' }}
+            >
+              {t('app.updateAvailable', { version: updateInfo?.version })}
+            </Alert>
+          </Snackbar>
+
+          <Snackbar
+            open={updateStatus !== null}
+            onClose={() => setUpdateStatus(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            autoHideDuration={2500}
+          >
+            <Alert
+              severity={updateStatus?.severity || 'success'}
+              onClose={() => setUpdateStatus(null)}
+              sx={{ alignItems: 'center' }}
+            >
+              {updateStatus?.message}
+            </Alert>
+          </Snackbar>
 
           {/* 错误提示 */}
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => useScanStore.getState().setError(null)}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                position: 'absolute',
+                top: 16,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+                minWidth: 400,
+              }} 
+              onClose={() => useScanStore.getState().setError(null)}
+            >
               {error}
             </Alert>
           )}
 
-          {/* 主布局：左侧控制面板，右侧可视化区域 */}
-          <Box sx={{ display: 'flex', gap: 3 }}>
-            {/* 左侧边栏 - 扫描控制 */}
-            <Box sx={{ width: 350, flexShrink: 0 }}>
-              <ScanControl />
-              <ScanOptions />
-              <GroupOptions />
-            </Box>
-
-            {/* 右侧主内容 - 可视化展示 */}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <TreemapView />
-              <FileList />
-            </Box>
-          </Box>
-        </Container>
+          {/* Tab Content */}
+          {renderTabContent()}
         </Box>
       </Box>
     </ThemeProvider>

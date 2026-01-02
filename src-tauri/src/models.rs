@@ -33,18 +33,10 @@ pub struct ScanProgress {
     pub stage: Option<String>, // 扫描阶段：scanning | fetching_sizes | building_tree | serializing | complete
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct ScanConfig {
     /// 最大并行线程数
     pub max_threads: Option<usize>,
-}
-
-impl Default for ScanConfig {
-    fn default() -> Self {
-        Self {
-            max_threads: None,
-        }
-    }
 }
 
 // MFT 解析后的节点信息

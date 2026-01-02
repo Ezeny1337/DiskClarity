@@ -143,9 +143,12 @@ export const ScanControl: React.FC = () => {
             label={t('scanControl.selectDriveLabel')}
             onChange={handleDriveChange}
             disabled={isScanning}
+            MenuProps={{
+              transitionDuration: 120,
+            }}
           >
             {drives.map((drive) => (
-              <MenuItem key={drive} value={drive}>
+              <MenuItem disableRipple key={drive} value={drive}>
                 {drive}
               </MenuItem>
             ))}

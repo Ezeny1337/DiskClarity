@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Box, Paper, Typography, Breadcrumbs, Link, Chip, Stack, IconButton, Tooltip, Menu, MenuItem } from '@mui/material';
+import { Box, Paper, Typography, Breadcrumbs, Link, Chip, Stack, IconButton, Tooltip, Menu, MenuItem, alpha } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useScanStore, FileNode } from '../store/scanStore';
+import { FileNode } from '../store/scanStore';
+import { useTabStore } from '../store/tabStore';
 import { formatBytes } from '../utils/format';
 import { Folder, InsertDriveFile, NavigateNext, ContentCopy, FolderOutlined } from '@mui/icons-material';
 import { invoke } from '@tauri-apps/api/core';
 import { groupFileNodes, sortGroupedNodes } from '../utils/grouping';
+import { buildBreadcrumbs, updateCurrentTabData } from '../utils/tabNavigation';
 
 interface TreemapRect {
   x: number;
@@ -28,48 +30,27 @@ const COLORS = [
 
 export const TreemapView: React.FC = () => {
   const { t } = useTranslation();
-  const { 
-    currentNode, 
-    scanResult, 
-    setCurrentNode, 
-    breadcrumbs, 
-    setBreadcrumbs,
-    groupBy,
-    sortField,
-    sortOrder,
-    flatGrouping,
-  } = useScanStore();
-
-  const buildBreadcrumbs = useCallback((root: FileNode | null, targetPath: string): FileNode[] => {
-    if (!root || !targetPath) return [];
-    if (root.path === targetPath) return [];
-
-    const stack: Array<{ node: FileNode; trail: FileNode[] }> = [{ node: root, trail: [] }];
-    while (stack.length > 0) {
-      const current = stack.pop();
-      if (!current) continue;
-
-      if (current.node.path === targetPath) {
-        return current.trail;
-      }
-
-      if (current.node.children && current.node.children.length > 0) {
-        for (let i = current.node.children.length - 1; i >= 0; i--) {
-          const child = current.node.children[i];
-          stack.push({ node: child, trail: [...current.trail, child] });
-        }
-      }
-    }
-
-    return [];
-  }, []);
+  const activeTabId = useTabStore((state) => state.activeTabId);
+  const tabs = useTabStore((state) => state.tabs);
+  const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId) || null, [tabs, activeTabId]);
+  
+  // 从tab data中读取状态
+  const currentNode = activeTab?.data?.currentNode || null;
+  const scanResult = activeTab?.data?.scanResult || null;
+  const breadcrumbs = activeTab?.data?.breadcrumbs || [];
+  const groupBy = activeTab?.data?.groupBy || 'none';
+  const sortField = activeTab?.data?.sortField || 'size';
+  const sortOrder = activeTab?.data?.sortOrder || 'desc';
+  const flatGrouping = activeTab?.data?.flatGrouping || false;
 
   const tGrouping = useCallback((key: string) => t(key), [t]);
 
   const [hoveredRect, setHoveredRect] = useState<TreemapRect | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number; node: FileNode } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipPosRef = useRef({ x: 0, y: 0 });
+  const tooltipRafRef = useRef<number | null>(null);
 
   const displayNode = currentNode || scanResult;
 
@@ -88,20 +69,25 @@ export const TreemapView: React.FC = () => {
     containerHeight: number
   ): TreemapRect[] => {
     if (!children || children.length === 0) return [];
+    if (!Number.isFinite(containerWidth) || !Number.isFinite(containerHeight) || containerWidth <= 0 || containerHeight <= 0) return [];
 
     // 按大小排序（降序）並限制为 100 项
     const sortedChildren = [...children]
-      .sort((a, b) => b.size - a.size)
+      .sort((a, b) => (Number(b.size) || 0) - (Number(a.size) || 0))
       .slice(0, 100);
     
     // 应用对数缩放以提高小文件的可见性
     // 这个方法确保小文件仍然可见，同时保持相对大小关系
-    const scaledChildren = sortedChildren.map(child => ({
-      ...child,
-      scaledSize: child.size === 0 ? 0 : Math.log10(child.size + 1)
-    }));
+    const scaledChildren = sortedChildren.map(child => {
+      const rawSize = Number(child.size);
+      const safeSize = Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 0;
+      return {
+        ...child,
+        scaledSize: safeSize === 0 ? 0 : Math.log10(safeSize + 1)
+      };
+    });
     
-    const totalSize = scaledChildren.reduce((sum, child) => sum + child.scaledSize, 0);
+    const totalSize = scaledChildren.reduce((sum, child) => sum + (Number.isFinite(child.scaledSize) ? child.scaledSize : 0), 0);
     
     if (totalSize === 0) return [];
 
@@ -116,6 +102,7 @@ export const TreemapView: React.FC = () => {
       height: number
     ) => {
       if (items.length === 0) return;
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
       
       if (items.length === 1) {
         const color = COLORS[rects.length % COLORS.length];
@@ -130,14 +117,18 @@ export const TreemapView: React.FC = () => {
         return;
       }
 
-      const total = items.reduce((sum, item) => sum + item.scaledSize, 0);
+      const total = items.reduce((sum, item) => sum + (Number.isFinite(item.scaledSize) ? item.scaledSize : 0), 0);
+      if (total <= 0) return;
       const shortSide = Math.min(width, height);
       
         // 计算一行的最大长宽比
       const worstAspectRatio = (row: Array<FileNode & { scaledSize: number }>, sideLength: number): number => {
+        if (!Number.isFinite(sideLength) || sideLength <= 0) return Number.POSITIVE_INFINITY;
         const rowSum = row.reduce((sum, item) => sum + item.scaledSize, 0);
         const rowArea = (rowSum / total) * width * height;
         const rowShortSide = rowArea / sideLength;
+
+        if (!Number.isFinite(rowShortSide) || rowShortSide <= 0) return Number.POSITIVE_INFINITY;
         
         let worst = 0;
         for (const item of row) {
@@ -203,15 +194,18 @@ export const TreemapView: React.FC = () => {
       height: number,
       isHorizontal: boolean
     ) => {
-      const total = items.reduce((sum, item) => sum + item.scaledSize, 0);
+      const total = items.reduce((sum, item) => sum + (Number.isFinite(item.scaledSize) ? item.scaledSize : 0), 0);
+      if (total <= 0) return;
       let offset = 0;
       
       for (const item of items) {
         const ratio = item.scaledSize / total;
+        if (!Number.isFinite(ratio) || ratio <= 0) continue;
         const color = COLORS[rects.length % COLORS.length];
         
         if (isHorizontal) {
           const itemHeight = height * ratio;
+          if (!Number.isFinite(itemHeight) || itemHeight <= 0) continue;
           rects.push({
             x,
             y: y + offset,
@@ -223,6 +217,7 @@ export const TreemapView: React.FC = () => {
           offset += itemHeight;
         } else {
           const itemWidth = width * ratio;
+          if (!Number.isFinite(itemWidth) || itemWidth <= 0) continue;
           rects.push({
             x: x + offset,
             y,
@@ -268,7 +263,9 @@ export const TreemapView: React.FC = () => {
 
   // 仅当依赖项改变时重新计算
   const treemapRects = useMemo(() => {
-    if (!displayNode || containerSize.width === 0 || containerSize.height === 0) return [];
+    if (!displayNode) return [];
+    if (!Number.isFinite(containerSize.width) || !Number.isFinite(containerSize.height)) return [];
+    if (containerSize.width <= 0 || containerSize.height <= 0) return [];
 
     if (displayNode.children && displayNode.children.length > 0) {
       // 应用分组（传递当前节点的路径，避免在分组内再次分组）
@@ -286,30 +283,58 @@ export const TreemapView: React.FC = () => {
   const handleRectClick = (rect: TreemapRect) => {
     if (!rect.node.is_dir) return;
 
-    setCurrentNode(rect.node);
-    setBreadcrumbs(buildBreadcrumbs(scanResult, rect.node.path));
+    const crumbs = buildBreadcrumbs(scanResult, rect.node.path);
+    updateCurrentTabData({
+      currentNode: rect.node,
+      breadcrumbs: crumbs,
+    });
   };
 
   // 处理面包屑导航点击
   const handleBreadcrumbClick = (index: number) => {
     if (index === -1) {
-      setCurrentNode(scanResult);
-      setBreadcrumbs([]);
+      updateCurrentTabData({
+        currentNode: scanResult,
+        breadcrumbs: [],
+      });
     } else {
       const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
-      setCurrentNode(newBreadcrumbs[index]);
-      setBreadcrumbs(newBreadcrumbs);
+      updateCurrentTabData({
+        currentNode: newBreadcrumbs[index],
+        breadcrumbs: newBreadcrumbs,
+      });
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<SVGRectElement>, rect: TreemapRect) => {
-    setHoveredRect(rect);
-    setTooltipPos({ x: e.clientX, y: e.clientY });
-  };
+  const updateTooltipPosition = useCallback((e: React.MouseEvent<SVGRectElement>) => {
+    if (!containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    tooltipPosRef.current = {
+      x: e.clientX - containerRect.left,
+      y: e.clientY - containerRect.top,
+    };
 
-  const handleMouseLeave = () => {
+    if (tooltipRafRef.current !== null) return;
+    tooltipRafRef.current = requestAnimationFrame(() => {
+      tooltipRafRef.current = null;
+      const el = tooltipRef.current;
+      if (!el) return;
+      const { x, y } = tooltipPosRef.current;
+      el.style.transform = `translate(${x + 10}px, ${y + 10}px)`;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tooltipRafRef.current !== null) {
+        cancelAnimationFrame(tooltipRafRef.current);
+      }
+    };
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
     setHoveredRect(null);
-  };
+  }, []);
 
   const handleRectContextMenu = (e: React.MouseEvent<SVGRectElement>, rect: TreemapRect) => {
     e.preventDefault();
@@ -326,16 +351,31 @@ export const TreemapView: React.FC = () => {
     try {
       await invoke('open_in_explorer', { path: contextMenu.node.path });
     } catch (error) {
-      const { setError } = useScanStore.getState();
-      setError(`${t('common.cannotOpenExplorer')}: ${error}`);
+      updateCurrentTabData({
+        error: `${t('common.cannotOpenExplorer')}: ${error}`,
+      });
     }
     handleCloseContextMenu();
   };
 
   if (!displayNode) {
     return (
-      <Paper elevation={3} sx={{ p: 3, mb: 3, height: '600px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="h6" color="text.secondary">
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 3, 
+          mb: 3, 
+          height: '600px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          background: alpha('#ffffff', 0.15),
+          backdropFilter: 'blur(10px)',
+          border: `1px solid ${alpha('#ffffff', 0.2)}`,
+          borderRadius: 2,
+        }}
+      >
+        <Typography variant="h6" sx={{ color: alpha('#ffffff', 0.7) }}>
           {t('treemapView.noData')}
         </Typography>
       </Paper>
@@ -343,17 +383,36 @@ export const TreemapView: React.FC = () => {
   }
 
   return (
-    <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+    <Paper 
+      elevation={0} 
+      sx={{ 
+        p: 2, 
+        mb: 3,
+        background: alpha('#ffffff', 0.15),
+        backdropFilter: 'blur(10px)',
+        border: `1px solid ${alpha('#ffffff', 0.2)}`,
+        borderRadius: 2,
+      }}
+    >
       {/* 面包屑导航 */}
       <Stack spacing={2} sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-            <Breadcrumbs separator={<NavigateNext fontSize="small" />}>
+            <Breadcrumbs 
+              separator={<NavigateNext fontSize="small" sx={{ color: alpha('#ffffff', 0.5) }} />}
+              sx={{ color: 'white' }}
+            >
               <Link
                 component="button"
                 variant="body1"
                 onClick={() => handleBreadcrumbClick(-1)}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 0.5,
+                  color: 'white',
+                  '&:hover': { color: alpha('#ffffff', 0.8) },
+                }}
               >
                 <Folder fontSize="small" />
                 {driveLabel}
@@ -364,7 +423,13 @@ export const TreemapView: React.FC = () => {
                   component="button"
                   variant="body1"
                   onClick={() => handleBreadcrumbClick(index)}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 0.5,
+                    color: 'white',
+                    '&:hover': { color: alpha('#ffffff', 0.8) },
+                  }}
                 >
                   {node.is_dir ? <Folder fontSize="small" /> : <InsertDriveFile fontSize="small" />}
                   {node.name}
@@ -378,6 +443,7 @@ export const TreemapView: React.FC = () => {
                   const path = displayNode?.path || '';
                   navigator.clipboard.writeText(path);
                 }}
+                sx={{ color: 'white' }}
               >
                 <ContentCopy fontSize="small" />
               </IconButton>
@@ -387,8 +453,12 @@ export const TreemapView: React.FC = () => {
           {displayNode && (
             <Chip
               label={`${formatBytes(displayNode.size || 0)} | ${(displayNode.file_count || 0).toLocaleString()} ${t('treemapView.files')}`}
-              color="primary"
               size="small"
+              sx={{
+                background: alpha('#ffffff', 0.2),
+                color: 'white',
+                border: `1px solid ${alpha('#ffffff', 0.3)}`,
+              }}
             />
           )}
         </Box>
@@ -401,12 +471,16 @@ export const TreemapView: React.FC = () => {
           height: '600px', 
           width: '100%', 
           position: 'relative',
-          bgcolor: '#f5f5f5',
-          border: '1px solid #ddd',
+          background: alpha('#ffffff', 0.1),
+          border: `1px solid ${alpha('#ffffff', 0.2)}`,
+          borderRadius: 1,
         }}
       >
         <svg width="100%" height="100%" style={{ display: 'block' }}>
           {treemapRects.map((rect, index) => {
+            if (![rect.x, rect.y, rect.width, rect.height].every((v) => Number.isFinite(v)) || rect.width <= 0 || rect.height <= 0) {
+              return null;
+            }
             const isHovered = hoveredRect?.node.path === rect.node.path;
             const showSize = rect.width > 80 && rect.height > 50;
             
@@ -436,7 +510,11 @@ export const TreemapView: React.FC = () => {
                     transition: 'opacity 0.2s',
                   }}
                   onClick={() => handleRectClick(rect)}
-                  onMouseMove={(e) => handleMouseMove(e, rect)}
+                  onMouseEnter={(e) => {
+                    setHoveredRect(rect);
+                    updateTooltipPosition(e);
+                  }}
+                  onMouseMove={updateTooltipPosition}
                   onMouseLeave={handleMouseLeave}
                   onContextMenu={(e) => handleRectContextMenu(e, rect)}
                 />
@@ -485,17 +563,20 @@ export const TreemapView: React.FC = () => {
         {/* 自定义提示框 */}
         {hoveredRect && (
           <Box
+            ref={tooltipRef}
             sx={{
-              position: 'fixed',
-              left: tooltipPos.x + 10,
-              top: tooltipPos.y + 10,
-              bgcolor: 'rgba(0, 0, 0, 0.9)',
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bgcolor: alpha('#000000', 0.9),
+              backdropFilter: 'blur(10px)',
               color: 'white',
               p: 1.5,
               borderRadius: 1,
               pointerEvents: 'none',
               zIndex: 9999,
               maxWidth: 300,
+              transform: 'translate(0px, 0px)',
             }}
           >
             <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.5 }}>

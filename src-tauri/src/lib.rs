@@ -11,9 +11,57 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tauri::State;
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct GitHubLatestRelease {
+    tag_name: String,
+    html_url: Option<String>,
+    body: Option<String>,
+}
+
 // 全局扫描件状态
 struct ScannerState {
     scanner: Arc<Mutex<Option<Arc<MftScanner>>>>,
+}
+
+#[tauri::command]
+async fn get_latest_release(repo: String) -> Result<GitHubLatestRelease, String> {
+    let atom_url = format!("https://github.com/{}/releases.atom", repo.trim());
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(atom_url)
+        .header("User-Agent", "DiskClarity")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !response.status().is_success() {
+        return Err(format!("GitHub feed error: {}", response.status()));
+    }
+
+    let text = response.text().await.map_err(|e| e.to_string())?;
+
+    // Atom feed contains links like: https://github.com/<owner>/<repo>/releases/tag/<tag>
+    let marker = "/releases/tag/";
+    let idx = text
+        .find(marker)
+        .ok_or_else(|| "Cannot parse releases feed".to_string())?;
+
+    let start = idx + marker.len();
+    let rest = &text[start..];
+    let end = rest
+        .find('"')
+        .or_else(|| rest.find('<'))
+        .unwrap_or(rest.len());
+    let tag = rest[..end].trim().to_string();
+
+    let html_url = format!("https://github.com/{}/releases/tag/{}", repo.trim(), tag);
+
+    Ok(GitHubLatestRelease {
+        tag_name: tag,
+        html_url: Some(html_url),
+        body: None,
+    })
 }
 
 impl ScannerState {
@@ -152,7 +200,7 @@ fn open_in_explorer(path: String) -> Result<(), String> {
         
         if is_file {
             Command::new("explorer")
-                .args(&["/select,", &normalized_path])
+                .args(["/select,", normalized_path.as_str()])
                 .spawn()
                 .map_err(|e| format!("Failed to spawn explorer: {}", e))?;
         } else {
@@ -265,7 +313,8 @@ pub fn run() {
             get_drives,
             get_cpu_count,
             get_disk_info,
-            open_in_explorer
+            open_in_explorer,
+            get_latest_release
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

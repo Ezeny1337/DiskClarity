@@ -137,24 +137,22 @@ impl MftScanner {
 
         // 转换为 MftFileEntry 并更新原子计数器
         let mut entries = Vec::with_capacity(parsed_count);
-        for node in nodes {
-            if let Some(n) = node {
-                if n.is_dir {
-                    self.scanned_dirs.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    self.scanned_files.fetch_add(1, Ordering::Relaxed);
-                    self.total_size.fetch_add(n.size, Ordering::Relaxed);
-                }
-                entries.push(MftFileEntry {
-                    file_ref: n.file_ref,
-                    parent_ref: n.parent_ref,
-                    name: n.name,
-                    size: n.size,
-                    is_dir: n.is_dir,
-                    modified_time: n.modified_time,
-                    needs_size_fallback: n.needs_size_fallback,
-                });
+        for n in nodes.into_iter().flatten() {
+            if n.is_dir {
+                self.scanned_dirs.fetch_add(1, Ordering::Relaxed);
+            } else {
+                self.scanned_files.fetch_add(1, Ordering::Relaxed);
+                self.total_size.fetch_add(n.size, Ordering::Relaxed);
             }
+            entries.push(MftFileEntry {
+                file_ref: n.file_ref,
+                parent_ref: n.parent_ref,
+                name: n.name,
+                size: n.size,
+                is_dir: n.is_dir,
+                modified_time: n.modified_time,
+                needs_size_fallback: n.needs_size_fallback,
+            });
         }
 
         let _scan_duration = scan_start.elapsed();

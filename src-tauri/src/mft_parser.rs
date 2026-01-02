@@ -266,7 +266,7 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
     if !file_names.is_empty() {
         let win32_names: Vec<_> = file_names.iter().filter(|n| n.is_win32).collect();
         let chosen_name = if !win32_names.is_empty() {
-            &win32_names[0]
+            win32_names[0]
         } else {
             &file_names[0]
         };

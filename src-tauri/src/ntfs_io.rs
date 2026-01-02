@@ -180,7 +180,9 @@ pub fn read_mft_raw(drive: &str, vol_info: &NtfsVolumeInfo) -> Result<Vec<u8>, S
         let record_size = vol_info.bytes_per_mft_record as usize;
         
         // 计算对齐后的读取大小，确保读取的数据量是扇区大小的整数倍
-        let aligned_read_size = ((record_size + offset_within_sector as usize + sector_size as usize - 1) / sector_size as usize) * sector_size as usize;
+        let aligned_read_size = (record_size + offset_within_sector as usize)
+            .div_ceil(sector_size as usize)
+            * sector_size as usize;
         let mut read_buffer = vec![0u8; aligned_read_size];
         let mut bytes_read = 0u32;
         
@@ -207,14 +209,16 @@ pub fn read_mft_raw(drive: &str, vol_info: &NtfsVolumeInfo) -> Result<Vec<u8>, S
         let mut mft_data = Vec::with_capacity(mft_size as usize);
         let sector_size = vol_info.bytes_per_sector;
         
-        for (_i, run) in data_runs.iter().enumerate() {
+        for run in data_runs.iter() {
             let fragment_offset = run.start_cluster * vol_info.bytes_per_cluster;
             let fragment_size = run.cluster_count * vol_info.bytes_per_cluster;
             
             // 对齐到扇区大小
             let aligned_offset = (fragment_offset / sector_size) * sector_size;
             let offset_within_sector = fragment_offset - aligned_offset;
-            let aligned_read_size = ((fragment_size as usize + offset_within_sector as usize + sector_size as usize - 1) / sector_size as usize) * sector_size as usize;
+            let aligned_read_size = (fragment_size as usize + offset_within_sector as usize)
+                .div_ceil(sector_size as usize)
+                * sector_size as usize;
             
             let mut new_pos: i64 = 0;
             if SetFilePointerEx(handle, aligned_offset as i64, Some(&mut new_pos), FILE_BEGIN).is_err() {

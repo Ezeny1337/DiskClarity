@@ -1,7 +1,12 @@
 {
   "app": {
     "title": "DiskClarity",
-    "logoAlt": "DiskClarity"
+    "logoAlt": "DiskClarity",
+    "updateAvailable": "Update available: v{{version}}",
+    "download": "Download",
+    "checkUpdates": "Check for updates",
+    "upToDate": "You're up to date",
+    "updateCheckFailed": "Update check failed"
   },
   "scanControl": {
     "title": "Scan Target",
@@ -101,6 +106,33 @@
     "monthsAgo": "{{months}}mo ago",
     "yearsAgo": "{{years}}y ago",
     "openInExplorer": "Open in Explorer"
+  },
+  "home": {
+    "title": "Home",
+    "diskScan": "Disk Scan",
+    "snapshot": "Snapshot",
+    "snapshotAnalysis": "Snapshot Analysis"
+  },
+  "diskSelector": {
+    "title": "Select a Disk to Scan",
+    "loading": "Loading disk information...",
+    "capacity": "Capacity",
+    "used": "Used",
+    "available": "Available",
+    "usage": "Usage"
+  },
+  "scanView": {
+    "files": "Files",
+    "dirs": "Directories",
+    "size": "Size",
+    "time": "Time"
+  },
+  "tabs": {
+    "newTab": "New Tab"
+  },
+  "snapshot": {
+    "comingSoon": "Coming Soon",
+    "description": "Snapshot analysis feature is under development. Stay tuned!"
   },
   "common": {
     "close": "Close",
