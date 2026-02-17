@@ -1,6 +1,9 @@
 import { FileNode } from '../store/scanStore';
 import { useTabStore } from '../store/tabStore';
 
+/**
+ * 构建从根节点到目标路径的面包屑导航
+ */
 export function buildBreadcrumbs(root: FileNode | null, targetPath: string): FileNode[] {
   if (!root || !targetPath) return [];
   if (root.path === targetPath) return [];
@@ -25,6 +28,9 @@ export function buildBreadcrumbs(root: FileNode | null, targetPath: string): Fil
   return [];
 }
 
+/**
+ * 更新当前活动标签页的数据
+ */
 export function updateCurrentTabData(partialData: Record<string, any>) {
   const latestState = useTabStore.getState();
   const latestTab = latestState.tabs.find((tab) => tab.id === latestState.activeTabId) || null;

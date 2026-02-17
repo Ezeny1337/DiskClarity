@@ -104,20 +104,13 @@ impl MftScanner {
     /// 并行解析 - 使用 Rayon 并行处理 MFT 记录
     #[cfg(windows)]
     fn scan_mft(&self, drive: &str) -> Result<Vec<MftFileEntry>, String> {
-        let scan_start = std::time::Instant::now();
-
         // 获取卷参数
         let vol_info = ntfs_io::get_volume_info(drive)?;
 
         // 阶段 I: 读取原始 MFT 数据
-        let io_start = std::time::Instant::now();
         let mft_data = ntfs_io::read_mft_raw(drive, &vol_info)?;
-        let _io_duration = io_start.elapsed();
-        let _total_records = mft_data.len() / vol_info.bytes_per_mft_record as usize;
 
         // 阶段 II: 并行解析 MFT 记录
-        let parse_start = std::time::Instant::now();
-        
         let record_size = vol_info.bytes_per_mft_record as usize;
         let nodes: Vec<Option<MftNode>> = mft_data
             .par_chunks_exact(record_size)
@@ -129,8 +122,6 @@ impl MftScanner {
                 mft_parser::parse_mft_record(record_bytes, idx as u64)
             })
             .collect();
-
-        let _parse_duration = parse_start.elapsed();
 
         // 统计已解析的记录
         let parsed_count = nodes.iter().filter(|n| n.is_some()).count();
@@ -154,8 +145,6 @@ impl MftScanner {
                 needs_size_fallback: n.needs_size_fallback,
             });
         }
-
-        let _scan_duration = scan_start.elapsed();
 
         Ok(entries)
     }

@@ -1,3 +1,6 @@
+/**
+ * 格式化字节数
+ */
 export function formatBytes(bytes: number, decimals: number = 2): string {
   if (bytes === 0) return '0 Bytes';
 
@@ -10,6 +13,9 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+/**
+ * 格式化百分比
+ */
 export function formatPercentage(value: number, total: number): string {
   if (total === 0) return '0%';
   return ((value / total) * 100).toFixed(1) + '%';

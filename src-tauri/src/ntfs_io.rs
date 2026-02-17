@@ -32,8 +32,8 @@ fn open_volume_handle(drive: &str, admin_hint: bool) -> Result<windows::Win32::F
 #[cfg(windows)]
 pub fn get_volume_info(drive: &str) -> Result<NtfsVolumeInfo, String> {
     use windows::Win32::Foundation::*;
-    use winapi::um::ioapiset::DeviceIoControl;
-    use winapi::um::winioctl::FSCTL_GET_NTFS_VOLUME_DATA;
+    use windows::Win32::System::IO::DeviceIoControl;
+    use windows::Win32::System::Ioctl::FSCTL_GET_NTFS_VOLUME_DATA;
 
     unsafe {
         let handle = open_volume_handle(drive, true)?;
@@ -42,20 +42,18 @@ pub fn get_volume_info(drive: &str) -> Result<NtfsVolumeInfo, String> {
         let mut vol_data = [0u8; 512];
         let mut bytes_returned = 0u32;
 
-        let handle_ptr = handle.0;
-
         let ioctl_result = DeviceIoControl(
-            handle_ptr,
+            handle,
             FSCTL_GET_NTFS_VOLUME_DATA,
-            std::ptr::null_mut(),
+            None,
             0,
-            &mut vol_data as *mut _ as *mut std::ffi::c_void,
+            Some(vol_data.as_mut_ptr() as *mut std::ffi::c_void),
             vol_data.len() as u32,
-            &mut bytes_returned,
-            std::ptr::null_mut(),
+            Some(&mut bytes_returned),
+            None,
         );
 
-        if ioctl_result != 0 && bytes_returned >= 72 {
+        if ioctl_result.is_ok() && bytes_returned >= 72 {
             // NTFS_VOLUME_DATA_BUFFER 结构布局
             // 偏移 40-43: BytesPerSector (4 字节，小端序)
             // 偏移 44-47: BytesPerCluster (4 字节，小端序)

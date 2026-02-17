@@ -21,7 +21,7 @@ export const GroupOptions: React.FC = () => {
   const { t } = useTranslation();
   const { getActiveTab, updateCurrentTab } = useTabStore();
   const activeTab = getActiveTab();
-  
+
   const groupBy = activeTab?.data?.groupBy || 'none';
   const flatGrouping = activeTab?.data?.flatGrouping || false;
 
@@ -44,39 +44,40 @@ export const GroupOptions: React.FC = () => {
   };
 
   return (
-    <Paper 
-      elevation={0} 
-      sx={{ 
-        p: 2,
-        background: alpha('#ffffff', 0.15),
-        backdropFilter: 'blur(10px)',
-        border: `1px solid ${alpha('#ffffff', 0.2)}`,
-        borderRadius: 2,
-      }}
+    <Paper
+      elevation={0}
+      className="bg-zinc-900/50 backdrop-blur-md border border-white/5 rounded-xl text-white"
+      sx={{ p: 2, bgcolor: 'transparent' }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <Layers sx={{ color: 'white' }} />
         <Typography variant="h6" sx={{ color: 'white' }}>{t('groupOptions.title')}</Typography>
       </Box>
-      
+
       <Stack spacing={2}>
         <FormControl fullWidth size="small">
           <Typography variant="caption" sx={{ mb: 0.5, color: alpha('#ffffff', 0.7) }}>
             {t('groupOptions.groupBy')}
           </Typography>
-          <Select 
-            value={groupBy} 
+          <Select
+            value={groupBy}
             onChange={handleGroupChange}
             sx={{
               color: 'white',
+              bgcolor: alpha('#000', 0.2),
+              borderRadius: 1,
               '.MuiOutlinedInput-notchedOutline': {
-                borderColor: alpha('#ffffff', 0.3),
+                border: '1px solid',
+                borderColor: alpha('#ffffff', 0.1),
+                transition: 'border-color 0.2s',
               },
               '&:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: alpha('#ffffff', 0.5),
+                borderColor: alpha('#ffffff', 0.3),
               },
               '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'white',
+                borderWidth: '1px',
+                borderColor: 'primary.main',
+                boxShadow: `0 0 0 3px ${alpha('#3b82f6', 0.2)}`, // blue-500 equivalent
               },
               '.MuiSvgIcon-root': {
                 color: 'white',
@@ -124,7 +125,7 @@ export const GroupOptions: React.FC = () => {
                     backgroundColor: alpha('#ffffff', 0.5),
                   },
                 }}
-              
+
                 checked={flatGrouping}
                 onChange={handleFlatGroupingChange}
                 size="small"

@@ -29,7 +29,7 @@ export const ScanControl: React.FC = () => {
   const [drives, setDrives] = useState<string[]>([]);
   const [diskInfo, setDiskInfo] = useState<DiskInfo | null>(null);
   const lastDurationRef = useRef<number>(0);
-  
+
   const {
     isScanning,
     scanProgress,
@@ -43,12 +43,12 @@ export const ScanControl: React.FC = () => {
 
   useEffect(() => {
     // 加载可用的驱动器
-    getDrives().then(setDrives).catch(() => {});
+    getDrives().then(setDrives).catch(() => { });
   }, []);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
-    
+
     if (isScanning) {
       // 定期轮询进度更新
       interval = setInterval(async () => {
@@ -61,7 +61,7 @@ export const ScanControl: React.FC = () => {
         }
       }, 200); // 每200毫秒更新一次
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -80,10 +80,10 @@ export const ScanControl: React.FC = () => {
 
     try {
       const result = await startScan(selectedDrive, scanConfig);
-      
+
       // 设置最终结果
       setScanResult(result);
-      
+
       // 标记为完成
       setScanProgress({
         scanned_files: result.file_count,
@@ -106,14 +106,14 @@ export const ScanControl: React.FC = () => {
       await cancelScan();
       setIsScanning(false);
     } catch (err) {
-      // Handle cancel error silently
+      // 静默处理取消扫描时的错误
     }
   };
 
   const handleDriveChange = async (event: SelectChangeEvent) => {
     const drive = event.target.value;
     setSelectedDrive(drive);
-    
+
     // 选择驱动器时获取磁盘信息
     if (drive) {
       try {
@@ -238,16 +238,16 @@ export const ScanControl: React.FC = () => {
               </Typography>
             </Box>
             <Typography variant="body2">
-              <strong>{t('scanControl.files')}:</strong> {(scanProgress.scanned_files || 0).toLocaleString()} | 
+              <strong>{t('scanControl.files')}:</strong> {(scanProgress.scanned_files || 0).toLocaleString()} |
               <strong>{t('scanControl.dirs')}:</strong> {(scanProgress.scanned_dirs || 0).toLocaleString()}
             </Typography>
             <Typography variant="body2">
-              <strong>{t('scanControl.size')}:</strong> {formatBytes(scanProgress.total_size || 0)} | 
+              <strong>{t('scanControl.size')}:</strong> {formatBytes(scanProgress.total_size || 0)} |
               <strong>{t('scanControl.time')}:</strong> {formatDuration(scanProgress.duration_ms || 0, t)}
             </Typography>
           </Paper>
         )}
-        
+
         {/* 扫描完成信息 */}
         {!isScanning && scanProgress && scanProgress.is_complete && (
           <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
@@ -255,7 +255,7 @@ export const ScanControl: React.FC = () => {
               ✓ {t('scanControl.scanCompleted', { duration: formatDuration(scanProgress.duration_ms || 0, t) })}
             </Typography>
             <Typography variant="caption">
-              {t('scanControl.scanDetails', { 
+              {t('scanControl.scanDetails', {
                 files: (scanProgress.scanned_files || 0).toLocaleString(),
                 dirs: (scanProgress.scanned_dirs || 0).toLocaleString(),
                 size: formatBytes(scanProgress.total_size || 0)
@@ -289,23 +289,23 @@ function getStageText(stage: string, t: (key: string) => string): string {
 // 格式化时间间隔为可读的字符串
 function formatDuration(ms: number, t: (key: string, options?: any) => string): string {
   if (ms < 1000) return t('common.time.millisecond', { count: ms });
-  
+
   const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return t('common.time.second', { count: seconds });
-  
+
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  
+
   if (minutes < 60) {
-    return remainingSeconds > 0 
+    return remainingSeconds > 0
       ? t('common.time.minuteWithSeconds', { minutes, seconds: remainingSeconds })
       : t('common.time.minute', { minutes });
   }
-  
+
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  
-  return remainingMinutes > 0 
+
+  return remainingMinutes > 0
     ? t('common.time.hourWithMinutes', { hours, minutes: remainingMinutes })
     : t('common.time.hour', { hours });
 }

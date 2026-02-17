@@ -84,7 +84,6 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
     let mut offset = first_attr_offset;
     let mut attr_count = 0;
     
-    
     while offset + 4 < record_bytes.len() {
         let attr_type = u32::from_le_bytes([
             record_bytes[offset],
@@ -196,7 +195,7 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
                                     .chunks(2)
                                     .map(|c| u16::from_le_bytes([c[0], c[1]]))
                                     .collect::<Vec<_>>()
-                            ).to_string();
+                            );
                             
                             // 判断是否为 Win32 长文件名
                             let is_win32 = name_len > 8 && !current_name.contains('~');
@@ -241,20 +240,18 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
                         record_bytes[offset + 62],
                         record_bytes[offset + 63],
                     ]);
-                } else {
+                } else if offset + 56 < record_bytes.len() {
                     // 如果无法读取偏移 56-63，尝试读取分配大小
-                    if offset + 56 < record_bytes.len() {
-                        size = u64::from_le_bytes([
-                            record_bytes[offset + 48],
-                            record_bytes[offset + 49],
-                            record_bytes[offset + 50],
-                            record_bytes[offset + 51],
-                            record_bytes[offset + 52],
-                            record_bytes[offset + 53],
-                            record_bytes[offset + 54],
-                            record_bytes[offset + 55],
-                        ]);
-                    }
+                    size = u64::from_le_bytes([
+                        record_bytes[offset + 48],
+                        record_bytes[offset + 49],
+                        record_bytes[offset + 50],
+                        record_bytes[offset + 51],
+                        record_bytes[offset + 52],
+                        record_bytes[offset + 53],
+                        record_bytes[offset + 54],
+                        record_bytes[offset + 55],
+                    ]);
                 }
             }
         }
@@ -281,8 +278,6 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
         return None;
     }
 
-    let link_count = 1u16;
-
     // 标记是否需要从文件系统获取大小
     let needs_size_fallback = !is_dir && size == 0;
     
@@ -293,7 +288,7 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
         size,
         is_dir,
         modified_time,
-        link_count,
+        link_count: 1,
         needs_size_fallback,
     })
 }

@@ -1,6 +1,6 @@
 [package]
 name = "DiskClarity"
-version = "2.0.0"
+version = "3.0.0"
 description = "An efficient and lightweight disk space analysis tool"
 authors = ["Ezeny"]
 edition = "2021"
@@ -37,8 +37,8 @@ flate2 = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "fs", "sync", "process"] }
 parking_lot = { version = "0.12", features = [] }
 num_cpus = { version = "1.17", default-features = false }
-winapi = { version = "0.3", features = ["fileapi", "ioapiset", "winioctl", "std"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+mimalloc = { version = "0.1", default-features = false }
+ureq = { version = "3.2.0", features = ["native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [

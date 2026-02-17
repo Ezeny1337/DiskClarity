@@ -110,8 +110,10 @@
   "home": {
     "title": "Home",
     "diskScan": "Disk Scan",
+    "diskScanDesc": "Analyze disk usage and cleanup space",
     "snapshot": "Snapshot",
-    "snapshotAnalysis": "Snapshot Analysis"
+    "snapshotAnalysis": "Snapshot Analysis",
+    "snapshotAnalysisDesc": "Compare snapshots and track changes"
   },
   "diskSelector": {
     "title": "Select a Disk to Scan",

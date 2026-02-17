@@ -33,10 +33,10 @@
 - **Transmission Optimization**: Reduces frontend-backend data transfer as much as possible
 
 **2. Modern Interface**
-- Modern, beautiful, responsive Web UI built with React + Material-UI
+- Modern, beautiful, responsive Web UI built with React + Material-UI + Tailwind CSS
 
 **3. Visual Analytics**
-- Interactive charts and graphics with comprehensive sorting and classification for better data analysis and visualization
+- Interactive Treemap and File Tree with comprehensive sorting, classification, and grouping for deep data analysis
 
 **4. Ultra Lightweight**
 - Built with lightweight Tauri framework and maximum package size optimization

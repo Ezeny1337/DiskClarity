@@ -46,7 +46,7 @@ export const TabBar: React.FC = () => {
     if (draggedTab && draggedTab !== targetTabId) {
       const draggedIndex = tabs.findIndex(t => t.id === draggedTab);
       const targetIndex = tabs.findIndex(t => t.id === targetTabId);
-      
+
       if (draggedIndex !== -1 && targetIndex !== -1) {
         const newTabs = [...tabs];
         const [removed] = newTabs.splice(draggedIndex, 1);
@@ -80,7 +80,7 @@ export const TabBar: React.FC = () => {
         gap: 0.5,
         overflowX: 'auto',
         overflowY: 'hidden',
-        WebkitAppRegion: 'no-drag',
+        pointerEvents: 'none',
         '&::-webkit-scrollbar': {
           height: 4,
         },
@@ -133,6 +133,7 @@ export const TabBar: React.FC = () => {
                 width: 2,
                 bgcolor: 'primary.main',
               } : {},
+              pointerEvents: 'auto',
             }}
           >
             {getTabIcon(tab.type)}
@@ -174,6 +175,7 @@ export const TabBar: React.FC = () => {
           sx={{
             ml: 0.5,
             color: 'text.secondary',
+            pointerEvents: 'auto',
             '&:hover': {
               bgcolor: alpha('#000', 0.05),
             },

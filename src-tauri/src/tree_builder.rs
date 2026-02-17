@@ -5,8 +5,6 @@ use rayon::prelude::*;
 
 /// 从平面 MFT 条目构建树形结构
 pub fn build_tree(entries: Vec<MftFileEntry>, root_path: &str) -> Result<FileNode, String> {
-    let tree_start = std::time::Instant::now();
-    
     // 预分配映射容量
     let capacity = entries.len();
     let mut entry_map: HashMap<u64, MftFileEntry> = HashMap::with_capacity(capacity);
@@ -36,8 +34,6 @@ pub fn build_tree(entries: Vec<MftFileEntry>, root_path: &str) -> Result<FileNod
     
     // 处理需要回退的文件（并行获取大小）
     if !fallback_entries.is_empty() {
-        let fallback_start = std::time::Instant::now();
-        
         let sizes: Vec<_> = fallback_entries
             .par_iter()
             .map(|(file_ref, _name)| {
@@ -60,8 +56,6 @@ pub fn build_tree(entries: Vec<MftFileEntry>, root_path: &str) -> Result<FileNod
                 }
             }
         }
-        
-        let _ = fallback_start.elapsed();
     }
     
     // NTFS 根目录引用号
@@ -87,10 +81,7 @@ pub fn build_tree(entries: Vec<MftFileEntry>, root_path: &str) -> Result<FileNod
     entry_map.insert(root_ref, root_entry);
     
     // 递归生成树
-    let result = build_node_recursive(&entry_map, &children_map, root_ref, root_path);
-    
-    let _ = tree_start.elapsed();
-    result
+    build_node_recursive(&entry_map, &children_map, root_ref, root_path)
 }
 
 fn build_node_recursive(

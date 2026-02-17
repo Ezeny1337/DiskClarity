@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, CircularProgress, alpha, Slider, Chip } from '@mui/material';
-import { Storage, CheckCircle, Speed } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { getDrives, getDiskInfo, DiskInfo, getCpuCount } from '../services/scanService';
 import { formatBytes } from '../utils/format';
 import { useScanStore } from '../store/scanStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { HardDrive, Cpu, Check, Loader2 } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Card } from './ui/Card';
 
 interface DiskSelectorProps {
   onSelect: (drive: string) => void;
@@ -51,8 +53,8 @@ export const DiskSelector: React.FC<DiskSelectorProps> = ({ onSelect }) => {
 
   const threadCount = scanConfig.max_threads || cpuCount;
 
-  const handleThreadChange = (_event: Event, value: number | number[]) => {
-    const threads = value as number;
+  const handleThreadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const threads = parseInt(e.target.value);
     setScanConfig({
       max_threads: threads === cpuCount ? undefined : threads,
     });
@@ -60,280 +62,152 @@ export const DiskSelector: React.FC<DiskSelectorProps> = ({ onSelect }) => {
 
   const handleDriveClick = (drive: string) => {
     setSelectedDrive(drive);
+    // 添加选择动画的延迟
     setTimeout(() => {
       onSelect(drive);
-    }, 300);
+    }, 400);
   };
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        }}
-      >
-        <CircularProgress size={60} sx={{ color: 'white' }} />
-      </Box>
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
     );
   }
 
   return (
-    <Box
-      sx={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        p: 4,
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      }}
-    >
-      <Typography
-        variant="h3"
-        sx={{
-          color: 'white',
-          fontWeight: 700,
-          mb: 2,
-          textShadow: '0 2px 10px rgba(0,0,0,0.2)',
-          animation: 'fadeInDown 0.6s ease-out',
-          '@keyframes fadeInDown': {
-            from: {
-              opacity: 0,
-              transform: 'translateY(-30px)',
-            },
-            to: {
-              opacity: 1,
-              transform: 'translateY(0)',
-            },
-          },
-        }}
+    <div className="h-full flex flex-col items-center justify-center p-8 overflow-y-auto">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-4xl flex flex-col items-center gap-8"
       >
-        {t('diskSelector.title')}
-      </Typography>
+        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50">
+          {t('diskSelector.title')}
+        </h1>
 
-      {/* CPU线程数设置 */}
-      <Paper
-        elevation={4}
-        sx={{
-          p: 3,
-          mb: 4,
-          minWidth: 400,
-          bgcolor: alpha('#ffffff', 0.95),
-          backdropFilter: 'blur(10px)',
-          borderRadius: 3,
-          animation: 'fadeInDown 0.6s ease-out 0.2s both',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <Speed color="primary" />
-          <Typography variant="h6" fontWeight="bold">
-            {t('scanOptions.performance')}
-          </Typography>
-          <Chip
-            label={t('scanOptions.threads', { count: threadCount })}
-            size="small"
-            color="primary"
-            sx={{ ml: 'auto' }}
-          />
-        </Box>
+        {/* 设置卡片 */}
+        <Card className="w-full max-w-lg p-6 flex flex-col gap-4 bg-zinc-900/50">
+          <div className="flex items-center gap-3 text-white/90">
+            <Cpu size={20} className="text-primary" />
+            <span className="font-semibold">{t('scanOptions.performance')}</span>
+            <div className="ml-auto px-2 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
+              {t('scanOptions.threads', { count: threadCount })}
+            </div>
+          </div>
 
-        <Slider
-          value={threadCount}
-          onChange={handleThreadChange}
-          min={1}
-          max={Math.max(cpuCount, 16)}
-          step={1}
-          marks={[
-            { value: 1, label: '1' },
-            { value: Math.floor(cpuCount / 2), label: `${Math.floor(cpuCount / 2)}` },
-            { value: cpuCount, label: t('scanOptions.auto') },
-          ]}
-          valueLabelDisplay="auto"
-          sx={{ mt: 1 }}
-        />
-      </Paper>
+          <div className="relative pt-2">
+            <input
+              type="range"
+              min={1}
+              max={Math.max(cpuCount, 16)}
+              value={threadCount}
+              onChange={handleThreadChange}
+              className="w-full h-2 bg-surface2 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary-hover"
+            />
+            <div className="flex justify-between text-xs text-text-muted mt-2">
+              <span>1</span>
+              <span>{t('scanOptions.auto')} ({cpuCount})</span>
+            </div>
+          </div>
+        </Card>
 
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 4,
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          animation: 'fadeInUp 0.6s ease-out 0.4s both',
-          '@keyframes fadeInUp': {
-            from: {
-              opacity: 0,
-              transform: 'translateY(30px)',
-            },
-            to: {
-              opacity: 1,
-              transform: 'translateY(0)',
-            },
-          },
-        }}
-      >
-        {drives.map((drive, index) => {
-          const diskInfo = diskInfos.get(drive);
-          const usagePercent = diskInfo
-            ? (diskInfo.used_space / diskInfo.total_space) * 100
-            : 0;
-          const isSelected = selectedDrive === drive;
+        {/* 驱动器网格 */}
+        <div className="flex flex-wrap justify-center gap-6 w-full">
+          <AnimatePresence>
+            {drives.map((drive, index) => {
+              const diskInfo = diskInfos.get(drive);
+              const usagePercent = diskInfo
+                ? (diskInfo.used_space / diskInfo.total_space) * 100
+                : 0;
+              const isSelected = selectedDrive === drive;
 
-          return (
-            <Paper
-              key={drive}
-              elevation={isSelected ? 12 : 6}
-              onClick={() => handleDriveClick(drive)}
-              sx={{
-                width: 240,
-                height: 240,
-                borderRadius: '50%',
-                p: 0,
-                cursor: 'pointer',
-                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                position: 'relative',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: isSelected
-                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                  : 'white',
-                color: isSelected ? 'white' : 'inherit',
-                animation: `slideIn 0.4s ease-out ${index * 0.1}s both`,
-                '@keyframes slideIn': {
-                  from: {
-                    opacity: 0,
-                    transform: 'scale(0.8)',
-                  },
-                  to: {
-                    opacity: 1,
-                    transform: 'scale(1)',
-                  },
-                },
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: isSelected
-                    ? 'radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%)'
-                    : 'radial-gradient(circle at center, rgba(102,126,234,0.1) 0%, transparent 70%)',
-                  opacity: 0,
-                  transition: 'opacity 0.3s ease',
-                },
-                '&:hover': {
-                  transform: 'scale(1.1)',
-                  boxShadow: isSelected
-                    ? '0 20px 60px rgba(102, 126, 234, 0.6)'
-                    : '0 12px 40px rgba(0,0,0,0.2)',
-                  '&::before': {
-                    opacity: 1,
-                  },
-                },
-                '&:active': {
-                  transform: 'scale(1.05)',
-                },
-              }}
-            >
-              {isSelected && (
-                <CheckCircle
-                  sx={{
-                    position: 'absolute',
-                    top: 20,
-                    right: 20,
-                    fontSize: 28,
-                    animation: 'checkmark 0.5s ease-out',
-                    '@keyframes checkmark': {
-                      '0%': {
-                        transform: 'scale(0) rotate(-45deg)',
-                        opacity: 0,
-                      },
-                      '50%': {
-                        transform: 'scale(1.2) rotate(10deg)',
-                      },
-                      '100%': {
-                        transform: 'scale(1) rotate(0deg)',
-                        opacity: 1,
-                      },
-                    },
-                  }}
-                />
-              )}
-
-              <Box
-                sx={{
-                  position: 'relative',
-                  zIndex: 1,
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  p: 3,
-                  boxSizing: 'border-box',
-                }}
-              >
-                <Storage
-                  sx={{
-                    fontSize: 60,
-                    mb: 1,
-                    color: isSelected ? 'white' : 'primary.main',
-                    opacity: 1,
-                  }}
-                />
-
-                <Typography
-                  variant="h3"
-                  sx={{
-                    fontWeight: 700,
-                    mb: 2,
-                    color: isSelected ? 'white' : 'text.primary',
-                  }}
+              return (
+                <motion.button
+                  key={drive}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.1 }}
+                  onClick={() => handleDriveClick(drive)}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={cn(
+                    "relative w-64 h-64 rounded-xl flex flex-col items-center justify-center p-6 gap-4 transition-all duration-300",
+                    "border backdrop-blur-md overflow-hidden",
+                    isSelected
+                      ? "bg-primary/10 border-primary/50 shadow-[0_0_30px_-5px_var(--tw-shadow-color)] shadow-primary/30"
+                      : "bg-surface/50 border-white/5 hover:border-white/10 hover:bg-surface/80"
+                  )}
                 >
-                  {drive.replace(':\\', '')}
-                </Typography>
-
-                {diskInfo && (
-                  <>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 600,
-                        color: isSelected ? alpha('#ffffff', 0.95) : 'text.primary',
-                        mb: 0.5,
-                      }}
+                  {/* 选择指示器 */}
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute top-4 right-4 text-primary bg-primary/20 p-1 rounded-full"
                     >
-                      {formatBytes(diskInfo.total_space)}
-                    </Typography>
+                      <Check size={20} className="stroke-[3]" />
+                    </motion.div>
+                  )}
 
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        mt: 0.5,
-                        fontWeight: 600,
-                        color: isSelected ? alpha('#ffffff', 0.9) : 'text.secondary',
-                      }}
-                    >
-                      {usagePercent.toFixed(0)}% {t('diskSelector.used')}
-                    </Typography>
-                  </>
-                )}
-              </Box>
-            </Paper>
-          );
-        })}
-      </Box>
-    </Box>
+                  {/* 驱动器图标 */}
+                  <div className={cn(
+                    "p-4 rounded-full transition-colors",
+                    isSelected ? "bg-primary/20 text-primary" : "bg-white/5 text-text-muted group-hover:text-white"
+                  )}>
+                    <HardDrive size={40} className="stroke-[1.5]" />
+                  </div>
+
+                  <div className="text-center space-y-1 z-10">
+                    <h3 className="text-2xl font-bold tracking-tight text-white">
+                      {drive}
+                    </h3>
+
+                    {diskInfo ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-text-muted">
+                          {formatBytes(diskInfo.total_space)}
+                        </p>
+
+                        {/* 进度条 */}
+                        <div className="w-32 h-1.5 bg-surface2 rounded-full overflow-hidden mx-auto mt-3">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${usagePercent}%` }}
+                            transition={{ duration: 1, delay: 0.5 }}
+                            className={cn(
+                              "h-full rounded-full",
+                              usagePercent > 90 ? "bg-red-500" : "bg-primary"
+                            )}
+                          />
+                        </div>
+                        <p className="text-xs text-text-muted pt-1">
+                          {usagePercent.toFixed(1)}% {t('diskSelector.used')}
+                        </p>
+                      </div>
+                    ) : (
+                      <Loader2 className="w-4 h-4 animate-spin mx-auto text-text-muted" />
+                    )}
+                  </div>
+
+                  {/* 发光效果 */}
+                  <div className={cn(
+                    "absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-500",
+                    isSelected ? "opacity-100" : "group-hover:opacity-100"
+                  )}
+                    style={{
+                      background: isSelected
+                        ? `radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.15), transparent 70%)`
+                        : `radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.05), transparent 70%)`
+                    }}
+                  />
+                </motion.button>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </div>
   );
 };

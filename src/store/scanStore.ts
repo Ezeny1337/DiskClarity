@@ -85,8 +85,8 @@ export const useScanStore = create<ScanState>((set) => ({
   setSelectedPath: (path) => set({ selectedPath: path }),
   setCurrentNode: (node) => set({ currentNode: node }),
   setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs }),
-  setScanConfig: (config) => set((state) => ({ 
-    scanConfig: { ...state.scanConfig, ...config } 
+  setScanConfig: (config) => set((state) => ({
+    scanConfig: { ...state.scanConfig, ...config }
   })),
   setSortField: (field) => set({ sortField: field }),
   setSortOrder: (order) => set({ sortOrder: order }),

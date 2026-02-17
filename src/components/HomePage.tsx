@@ -1,203 +1,144 @@
 import React from 'react';
-import { Box, Typography, Paper, alpha } from '@mui/material';
-import { Storage, PhotoLibrary } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useTabStore } from '../store/tabStore';
+import { motion } from 'framer-motion';
+import { HardDrive, History } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export const HomePage: React.FC = () => {
   const { t } = useTranslation();
-  const { updateCurrentTab } = useTabStore();
+  const { activeTabId, updateCurrentTab, addTab } = useTabStore();
 
   const handleDiskScan = () => {
+    if (!activeTabId) {
+      addTab({
+        id: `disk-scan-${Date.now()}`,
+        type: 'disk-scan',
+        title: t('home.diskScan'),
+        data: { scanStage: 'select' }
+      });
+      return;
+    }
     updateCurrentTab({
       type: 'disk-scan',
       title: t('home.diskScan'),
+      data: {
+        scanStage: 'select', // 确保从选择界面开始
+        drive: undefined
+      }
     });
   };
 
   const handleSnapshotAnalysis = () => {
+    if (!activeTabId) {
+      addTab({
+        id: `snapshot-${Date.now()}`,
+        type: 'snapshot-analysis',
+        title: t('home.snapshotAnalysis'),
+      });
+      return;
+    }
     updateCurrentTab({
       type: 'snapshot-analysis',
       title: t('home.snapshotAnalysis'),
     });
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
+  };
+
   return (
-    <Box
-      sx={{
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* 背景动画圆 */}
-      <Box
-        sx={{
-          position: 'absolute',
-          width: '500px',
-          height: '500px',
-          borderRadius: '50%',
-          background: alpha('#ffffff', 0.1),
-          top: '-200px',
-          left: '-200px',
-          animation: 'float 20s ease-in-out infinite',
-          '@keyframes float': {
-            '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
-            '50%': { transform: 'translate(50px, 50px) scale(1.1)' },
-          },
-        }}
-      />
-      <Box
-        sx={{
-          position: 'absolute',
-          width: '400px',
-          height: '400px',
-          borderRadius: '50%',
-          background: alpha('#ffffff', 0.08),
-          bottom: '-150px',
-          right: '-150px',
-          animation: 'float 15s ease-in-out infinite reverse',
-        }}
-      />
+    <div className="h-full w-full flex items-center justify-center bg-background relative overflow-hidden">
+      {/* Background Gradients */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[100px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/20 blur-[100px] rounded-full pointer-events-none" />
 
-      {/* 主内容 */}
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1,
-        }}
+      <motion.div
+        className="z-10 flex gap-8"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
       >
-        {/* Disk Scan 按钮 */}
-        <Paper
-          elevation={8}
+        <HomeCard
+          title={t('home.diskScan')}
+          icon={<HardDrive size={48} />}
+          description={t('home.diskScanDesc')}
           onClick={handleDiskScan}
-          sx={{
-            width: 280,
-            height: 280,
-            borderRadius: '50%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%)',
-              opacity: 0,
-              transition: 'opacity 0.4s ease',
-            },
-            '&:hover': {
-              transform: 'scale(1.1) translateY(-10px)',
-              boxShadow: '0 20px 60px rgba(102, 126, 234, 0.6)',
-              '&::before': {
-                opacity: 1,
-              },
-            },
-            '&:active': {
-              transform: 'scale(1.05) translateY(-5px)',
-            },
-          }}
-        >
-          <Storage
-            sx={{
-              fontSize: 80,
-              mb: 2,
-              opacity: 1,
-              animation: 'pulse 2s ease-in-out infinite',
-              '@keyframes pulse': {
-                '0%, 100%': { transform: 'scale(1)' },
-                '50%': { transform: 'scale(1.1)' },
-              },
-            }}
-          />
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 700,
-              textShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            }}
-          >
-            {t('home.diskScan')}
-          </Typography>
-        </Paper>
+          gradient="from-blue-500/20 to-cyan-500/20"
+          variants={itemVariants}
+        />
 
-        {/* Snapshot 按钮 */}
-        <Paper
-          elevation={8}
+        <HomeCard
+          title={t('home.snapshotAnalysis')}
+          icon={<History size={48} />}
+          description={t('home.snapshotAnalysisDesc')}
           onClick={handleSnapshotAnalysis}
-          sx={{
-            width: 280,
-            height: 280,
-            borderRadius: '50%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%)',
-              opacity: 0,
-              transition: 'opacity 0.4s ease',
-            },
-            '&:hover': {
-              transform: 'scale(1.1) translateY(-10px)',
-              boxShadow: '0 20px 60px rgba(240, 147, 251, 0.6)',
-              '&::before': {
-                opacity: 1,
-              },
-            },
-            '&:active': {
-              transform: 'scale(1.05) translateY(-5px)',
-            },
-          }}
-        >
-          <PhotoLibrary
-            sx={{
-              fontSize: 80,
-              mb: 2,
-              opacity: 1,
-              animation: 'pulse 2s ease-in-out infinite 0.5s',
-            }}
-          />
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 700,
-              textShadow: '0 2px 10px rgba(0,0,0,0.2)',
-            }}
-          >
-            {t('home.snapshot')}
-          </Typography>
-        </Paper>
-      </Box>
-    </Box>
+          gradient="from-purple-500/20 to-pink-500/20"
+          variants={itemVariants}
+        />
+      </motion.div>
+    </div>
+  );
+};
+
+interface HomeCardProps {
+  title: string;
+  icon: React.ReactNode;
+  description: string;
+  onClick: () => void;
+  gradient: string;
+  variants: any;
+}
+
+const HomeCard: React.FC<HomeCardProps> = ({ title, icon, description, onClick, gradient, variants }) => {
+  return (
+    <motion.button
+      variants={variants}
+      onClick={onClick}
+      whileHover={{ scale: 1.05, y: -5 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      className={cn(
+        "group relative w-72 h-72 rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-6",
+        "bg-surface/50 backdrop-blur-xl border border-white/5",
+        "transition-colors duration-200",
+        "hover:border-white/10 hover:shadow-2xl z-20 cursor-pointer"
+      )}
+    >
+      {/* Inner Gradient */}
+      <div className={cn(
+        "absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br",
+        gradient
+      )} />
+
+      {/* Icon with Glow */}
+      <div className="relative z-10 p-4 rounded-2xl bg-white/5 border border-white/10 group-hover:bg-white/10 transition-colors">
+        <div className="text-white/80 group-hover:text-white transition-colors">
+          {icon}
+        </div>
+        {/* Icon Glow */}
+        <div className={cn(
+          "absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-50 blur-lg transition-opacity duration-300 bg-current",
+        )} />
+      </div>
+
+      <div className="relative z-10 space-y-2">
+        <h3 className="text-xl font-semibold text-white tracking-tight">{title}</h3>
+        <p className="text-sm text-text-muted">{description}</p>
+      </div>
+    </motion.button>
   );
 };

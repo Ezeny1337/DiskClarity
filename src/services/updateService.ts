@@ -11,6 +11,10 @@ export interface UpdateInfo {
 
 const GITHUB_REPO = 'Ezeny1337/DiskClarity';
 
+/**
+ * 检查应用更新
+ * 使用 ureq
+ */
 export async function checkForUpdates(): Promise<UpdateInfo> {
   let currentVersion = '0.0.0';
   try {
@@ -18,25 +22,28 @@ export async function checkForUpdates(): Promise<UpdateInfo> {
   } catch {
   }
 
-  let data: any;
   try {
-    data = await invoke('get_latest_release', { repo: GITHUB_REPO });
-  } catch {
+    const data: any = await invoke('get_latest_release', { repo: GITHUB_REPO });
+
+    const latestVersion = String(data?.tag_name || '').replace(/^v/, '').trim() || currentVersion;
+    const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+
+    return {
+      hasUpdate,
+      latestVersion,
+      currentVersion,
+      downloadUrl: data.html_url,
+      releaseNotes: data.body,
+    };
+  } catch (error) {
+    console.error('Update check failed:', error);
     throw new Error('update_check_failed');
   }
-
-  const latestVersion = String(data?.tag_name || '').replace(/^v/, '').trim() || currentVersion;
-  const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
-
-  return {
-    hasUpdate,
-    latestVersion,
-    currentVersion,
-    downloadUrl: data.html_url,
-    releaseNotes: data.body,
-  };
 }
 
+/**
+ * 比较两个版本号
+ */
 function compareVersions(v1: string, v2: string): number {
   const toParts = (v: string) =>
     v

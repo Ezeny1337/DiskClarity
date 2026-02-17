@@ -4,6 +4,9 @@ mod mft_parser;
 mod tree_builder;
 mod mft_scanner;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use mft_scanner::MftScanner;
 use models::{ScanConfig, ScanProgress};
 
@@ -18,7 +21,7 @@ struct GitHubLatestRelease {
     body: Option<String>,
 }
 
-// 全局扫描件状态
+// 全局扫描器状态
 struct ScannerState {
     scanner: Arc<Mutex<Option<Arc<MftScanner>>>>,
 }
@@ -27,41 +30,43 @@ struct ScannerState {
 async fn get_latest_release(repo: String) -> Result<GitHubLatestRelease, String> {
     let atom_url = format!("https://github.com/{}/releases.atom", repo.trim());
 
-    let client = reqwest::Client::new();
-    let response = client
-        .get(atom_url)
-        .header("User-Agent", "DiskClarity")
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    // 使用 spawn_blocking 因为 ureq 是同步的，避免阻塞异步运行时
+    tokio::task::spawn_blocking(move || {
+        let agent = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(10)))
+            .build()
+            .new_agent();
 
-    if !response.status().is_success() {
-        return Err(format!("GitHub feed error: {}", response.status()));
-    }
+        let response = agent.get(&atom_url)
+            .header("User-Agent", "DiskClarity")
+            .call()
+            .map_err(|e: ureq::Error| e.to_string())?;
 
-    let text = response.text().await.map_err(|e| e.to_string())?;
+        let text = response.into_body().read_to_string().map_err(|e: ureq::Error| e.to_string())?;
 
-    // Atom feed contains links like: https://github.com/<owner>/<repo>/releases/tag/<tag>
-    let marker = "/releases/tag/";
-    let idx = text
-        .find(marker)
-        .ok_or_else(|| "Cannot parse releases feed".to_string())?;
+        let marker = "/releases/tag/";
+        let idx = text
+            .find(marker)
+            .ok_or_else(|| "Cannot parse releases feed".to_string())?;
 
-    let start = idx + marker.len();
-    let rest = &text[start..];
-    let end = rest
-        .find('"')
-        .or_else(|| rest.find('<'))
-        .unwrap_or(rest.len());
-    let tag = rest[..end].trim().to_string();
+        let start = idx + marker.len();
+        let rest = &text[start..];
+        let end = rest
+            .find('"')
+            .or_else(|| rest.find('<'))
+            .unwrap_or(rest.len());
+        let tag = rest[..end].trim().to_string();
 
-    let html_url = format!("https://github.com/{}/releases/tag/{}", repo.trim(), tag);
+        let html_url = format!("https://github.com/{}/releases/tag/{}", repo.trim(), tag);
 
-    Ok(GitHubLatestRelease {
-        tag_name: tag,
-        html_url: Some(html_url),
-        body: None,
+        Ok(GitHubLatestRelease {
+            tag_name: tag,
+            html_url: Some(html_url),
+            body: None,
+        })
     })
+    .await
+    .map_err(|e: tokio::task::JoinError| e.to_string())?
 }
 
 impl ScannerState {
@@ -78,10 +83,10 @@ async fn start_scan(
     config: ScanConfig,
     state: State<'_, ScannerState>,
 ) -> Result<Vec<u8>, String> {
-    // 创建扫描件实例
+    // 创建扫描器实例
     let scanner = Arc::new(MftScanner::new());
     
-    // 将扫描件存储在状态中以追踪进度
+    // 将扫描器存储在状态中以追踪进度
     {
         let mut scanner_lock = state.scanner.lock();
         *scanner_lock = Some(scanner.clone());
@@ -106,7 +111,6 @@ async fn start_scan(
     }
     
     // 序列化为 MessagePack 并压缩
-    let serialize_start = std::time::Instant::now();
     let msgpack_data = rmp_serde::to_vec_named(&result)
         .map_err(|e| format!("MessagePack serialization failed: {}", e))?;
     
@@ -121,9 +125,7 @@ async fn start_scan(
     let compressed_data = encoder.finish()
         .map_err(|e| format!("Compression finish failed: {}", e))?;
     
-    let _serialize_duration = serialize_start.elapsed();
-
-    // 从状态中清除扫描件
+    // 从状态中清除扫描器
     {
         let mut scanner_lock = state.scanner.lock();
         *scanner_lock = None;
@@ -227,7 +229,8 @@ async fn get_disk_info(path: String) -> Result<DiskInfo, String> {
     tokio::task::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
         {
-            use winapi::um::fileapi::GetDiskFreeSpaceExW;
+            use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+            use windows::core::PCWSTR;
             use std::os::windows::ffi::OsStrExt;
             
             let wide_path: Vec<u16> = std::ffi::OsStr::new(&path)
@@ -240,14 +243,12 @@ async fn get_disk_info(path: String) -> Result<DiskInfo, String> {
             let mut available_bytes: u64 = 0;
             
             unsafe {
-                if GetDiskFreeSpaceExW(
-                    wide_path.as_ptr(),
-                    &mut available_bytes as *mut u64 as *mut _,
-                    &mut total_bytes as *mut u64 as *mut _,
-                    &mut free_bytes as *mut u64 as *mut _,
-                ) == 0 {
-                    return Err("Failed to get disk space information".to_string());
-                }
+                GetDiskFreeSpaceExW(
+                    PCWSTR(wide_path.as_ptr()),
+                    Some(&mut available_bytes),
+                    Some(&mut total_bytes),
+                    Some(&mut free_bytes),
+                ).map_err(|e| format!("Failed to get disk space information: {}", e))?;
             }
             
             let used_bytes = total_bytes.saturating_sub(free_bytes);
@@ -264,12 +265,11 @@ async fn get_disk_info(path: String) -> Result<DiskInfo, String> {
         {
             use std::fs;
             
-            match fs::metadata(disk_path) {
+            match fs::metadata(&path) {
                 Ok(_) => {
-                    // On Unix systems, we can use statvfs
+                    // 在 Unix 系统上，可以使用 statvfs
                     #[cfg(unix)]
                     {
-                        use std::os::unix::fs::MetadataExt;
                         use libc::{c_char, statvfs};
                         use std::ffi::CString;
                         

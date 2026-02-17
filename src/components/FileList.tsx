@@ -36,11 +36,11 @@ function formatDate(timestamp: number, t: (key: string, options?: any) => string
   if (!timestamp || timestamp === 0 || isNaN(timestamp)) return t('fileList.unknown');
   const date = new Date(timestamp * 1000);
   if (isNaN(date.getTime())) return t('fileList.unknown');
-  
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 0) return t('fileList.today');
   if (diffDays === 1) return t('fileList.yesterday');
   if (diffDays < 7) return t('fileList.daysAgo', { days: diffDays });
@@ -73,10 +73,10 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
 
   // 根据存储设置分组和排序子项
   let sortedChildren = hasChildren ? [...node.children] : [];
-  
+
   // 应用分组
   sortedChildren = groupFileNodes(sortedChildren, groupBy, node.path, flatGrouping, tGrouping);
-  
+
   // 应用排序
   sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);
 
@@ -205,7 +205,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, parentSize, onNavigate
           )}
         </List>
       )}
-      
+
       {/* 右键菜单 */}
       <Menu
         open={contextMenu !== null}
@@ -228,7 +228,7 @@ export const FileList: React.FC = () => {
   const activeTabId = useTabStore((state) => state.activeTabId);
   const tabs = useTabStore((state) => state.tabs);
   const activeTab = React.useMemo(() => tabs.find((tab) => tab.id === activeTabId) || null, [tabs, activeTabId]);
-  
+
   const currentNode = activeTab?.data?.currentNode || null;
   const scanResult = activeTab?.data?.scanResult || null;
   const breadcrumbs = activeTab?.data?.breadcrumbs || [];
@@ -244,7 +244,7 @@ export const FileList: React.FC = () => {
   const setSortOrder = (order: any) => {
     updateCurrentTabData({ sortOrder: order });
   };
-  
+
   const [displayCount, setDisplayCount] = useState(100);
 
   const displayNode = currentNode || scanResult;
@@ -294,10 +294,10 @@ export const FileList: React.FC = () => {
   let sortedChildren = displayNode && displayNode.children
     ? [...displayNode.children]
     : [];
-  
+
   // 应用分组
   sortedChildren = groupFileNodes(sortedChildren, groupBy, displayNode?.path, flatGrouping, tGrouping);
-  
+
   // 应用排序
   sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);
 
@@ -306,20 +306,11 @@ export const FileList: React.FC = () => {
   const hasMore = sortedChildren.length > displayCount;
 
   return (
-    <Paper 
-      elevation={0} 
-      sx={{ 
-        mt: 3,
-        background: alpha('#ffffff', 0.15),
-        backdropFilter: 'blur(10px)',
-        border: `1px solid ${alpha('#ffffff', 0.2)}`,
-        borderRadius: 2,
-      }}
-    >
+    <div className="w-full h-full flex flex-col rounded-xl">
       <Stack spacing={2} sx={{ p: 2, pb: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-            <Breadcrumbs 
+            <Breadcrumbs
               separator={<NavigateNext fontSize="small" sx={{ color: alpha('#ffffff', 0.5) }} />}
               sx={{ color: 'white' }}
             >
@@ -327,9 +318,9 @@ export const FileList: React.FC = () => {
                 component="button"
                 variant="body1"
                 onClick={() => handleBreadcrumbClick(-1)}
-                sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: 0.5,
                   color: 'white',
                   '&:hover': { color: alpha('#ffffff', 0.8) },
@@ -344,9 +335,9 @@ export const FileList: React.FC = () => {
                   component="button"
                   variant="body1"
                   onClick={() => handleBreadcrumbClick(index)}
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: 0.5,
                     color: 'white',
                     '&:hover': { color: alpha('#ffffff', 0.8) },
@@ -377,19 +368,25 @@ export const FileList: React.FC = () => {
         {/* 排序选项 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <Select 
-              value={sortField} 
+            <Select
+              value={sortField}
               onChange={handleSortFieldChange}
               sx={{
                 color: 'white',
+                bgcolor: alpha('#000', 0.2),
+                borderRadius: 1,
                 '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: alpha('#ffffff', 0.3),
+                  border: '1px solid',
+                  borderColor: alpha('#ffffff', 0.1),
+                  transition: 'border-color 0.2s',
                 },
                 '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: alpha('#ffffff', 0.5),
+                  borderColor: alpha('#ffffff', 0.3),
                 },
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'white',
+                  borderWidth: '1px',
+                  borderColor: 'primary.main',
+                  boxShadow: `0 0 0 3px ${alpha('#3b82f6', 0.2)}`,
                 },
                 '.MuiSvgIcon-root': {
                   color: 'white',
@@ -402,6 +399,8 @@ export const FileList: React.FC = () => {
                     background: alpha('#1a1a2e', 0.95),
                     backdropFilter: 'blur(20px)',
                     border: `1px solid ${alpha('#ffffff', 0.2)}`,
+                    borderRadius: 2,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
                     '& .MuiMenuItem-root': {
                       color: 'white',
                       transition: 'background-color 80ms ease',
@@ -426,19 +425,25 @@ export const FileList: React.FC = () => {
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 100 }}>
-            <Select 
-              value={sortOrder} 
+            <Select
+              value={sortOrder}
               onChange={handleSortOrderChange}
               sx={{
                 color: 'white',
+                bgcolor: alpha('#000', 0.2),
+                borderRadius: 1,
                 '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: alpha('#ffffff', 0.3),
+                  border: '1px solid',
+                  borderColor: alpha('#ffffff', 0.1),
+                  transition: 'border-color 0.2s',
                 },
                 '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: alpha('#ffffff', 0.5),
+                  borderColor: alpha('#ffffff', 0.3),
                 },
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'white',
+                  borderWidth: '1px',
+                  borderColor: 'primary.main',
+                  boxShadow: `0 0 0 3px ${alpha('#3b82f6', 0.2)}`,
                 },
                 '.MuiSvgIcon-root': {
                   color: 'white',
@@ -451,6 +456,8 @@ export const FileList: React.FC = () => {
                     background: alpha('#1a1a2e', 0.95),
                     backdropFilter: 'blur(20px)',
                     border: `1px solid ${alpha('#ffffff', 0.2)}`,
+                    borderRadius: 2,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
                     '& .MuiMenuItem-root': {
                       color: 'white',
                       transition: 'background-color 80ms ease',
@@ -473,10 +480,10 @@ export const FileList: React.FC = () => {
             </Select>
           </FormControl>
         </Box>
-        
+
         <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-          <Chip 
-            label={`${formatBytes(displayNode.size || 0)}`} 
+          <Chip
+            label={`${formatBytes(displayNode.size || 0)}`}
             size="small"
             sx={{
               background: alpha('#ffffff', 0.2),
@@ -484,8 +491,8 @@ export const FileList: React.FC = () => {
               border: `1px solid ${alpha('#ffffff', 0.3)}`,
             }}
           />
-          <Chip 
-            label={`${(displayNode.file_count || 0).toLocaleString()} ${t('fileList.files')}`} 
+          <Chip
+            label={`${(displayNode.file_count || 0).toLocaleString()} ${t('fileList.files')}`}
             size="small"
             sx={{
               background: alpha('#ffffff', 0.2),
@@ -493,8 +500,8 @@ export const FileList: React.FC = () => {
               border: `1px solid ${alpha('#ffffff', 0.3)}`,
             }}
           />
-          <Chip 
-            label={`${(displayNode.dir_count || 0).toLocaleString()} ${t('fileList.folders')}`} 
+          <Chip
+            label={`${(displayNode.dir_count || 0).toLocaleString()} ${t('fileList.folders')}`}
             size="small"
             sx={{
               background: alpha('#ffffff', 0.2),
@@ -539,7 +546,7 @@ export const FileList: React.FC = () => {
             {t('fileList.modifiedTime')}
           </Typography>
         </Box>
-        
+
         <List dense>
           {displayedChildren.map((child) => (
             <TreeItem
@@ -564,6 +571,6 @@ export const FileList: React.FC = () => {
           )}
         </List>
       </Box>
-    </Paper>
+    </div>
   );
 };
