@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  📑 <a href="#-overview">Overview</a> • <a href="#-features">Features</a> • <a href="#%EF%B8%8F-support">Support</a> • <a href="#%EF%B8%8F-license">License</a>
+  📑 <a href="#-overview">Overview</a> • <a href="#-features">Features</a> • <a href="#-installation">Installation</a> • <a href="#%EF%B8%8F-support">Support</a> • <a href="#%EF%B8%8F-license">License</a>
 </p>
 
 <p align="center">
@@ -21,29 +21,62 @@
 
 ## 📖 Overview
 
-**DiskClarity** is an open source, efficient and lightweight disk space analysis tool. It provides users with a clear and intuitive way to visualize disk usage, identify large files and directories, and optimize storage space effectively.
+**DiskClarity** is an open-source high-performance lightweight disk space analysis tool that uses MFT and modern UI to provide extremely fast scanning speed and comprehensive storage analysis.
 
 ### 🚀 Features
 
-**1. Extreme Efficiency**
-- **Rust Powered**: Maximum performance and memory safety
-- **NTFS MFT Parsing**: Directly read NTFS Master File Table (MFT) for efficient scanning
-- **Parallel Processing**: Multi-threaded parallel scanning using Rayon library
-- **Asynchronous Processing**: Non-blocking, high-efficiency scanning
-- **Transmission Optimization**: Reduces frontend-backend data transfer as much as possible
+**⚡ Extreme Performance**
+- **NTFS MFT Direct Parsing**: Directly read the main file table (MFT) of NTFS for fast scanning
+- **Rust-Powered Backend**: Memory-safe, zero-cost abstractions with maximum performance
+- **Parallel Processing**: Multi-threaded scanning using Rayon library
+- **Optimized Data Transfer**: Reduces frontend-backend data transfer as much as possible
+- **Allocator**: Mimalloc high-performance memory allocation reduces fragmentation
 
-**2. Modern Interface**
-- Modern, beautiful, responsive Web UI built with React + Material-UI + Tailwind CSS
+**🎯 Advanced Analytics**
+- **Snapshot System**: Save and compare changes to disk files
+- **Interactive Visualizations**: Treemap charts and hierarchical file trees
+- **Group filtering**: Group files by type and extension or customize search files
+- **Comprehensive Sorting**: Sort by name, size, modification time, or file count
 
-**3. Visual Analytics**
-- Interactive Treemap and File Tree with comprehensive sorting, classification, and grouping for deep data analysis
-
-**4. Ultra Lightweight**
-- Built with lightweight Tauri framework and maximum package size optimization
+**🎨 Modern Interface**
+- **Multi-Tab Design**: Handle multiple analysis tasks simultaneously
+- **Smooth Animations**: Framer Motion powered micro-interactions
+- **Responsive Layout**: Material-UI components with Tailwind CSS styling
+- **Internationalization**: Full i18n support with i18next
 
 ### 🎨 UI
-<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/3ce99b3f-da85-4430-b85f-533174ea18b2" />
-<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/a415e479-6c7e-4b83-86e4-d3fc439acb95" />
+<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/1e696e3f-b60a-486b-a0da-a8fd5a6b8744" />
+<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/317d13d8-f361-4fe9-938b-924b898d6145" />
+<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/a0413e92-b570-4777-b701-127f688608fd" />
+
+## 🧰 Installation
+
+### Prerequisites
+- **Windows 10/11** (NTFS file system required for MFT parsing and needs to be run by an administrator)
+- **Node.js 18+** for development
+- **Rust 1.70+** for building from source
+
+### Pre-built Releases
+Download the latest release from [GitHub Releases](https://github.com/Ezeny1337/DiskClarity/releases):
+- Portable versions available
+- `diskclarity-setup.exe` - Windows installer
+- `DiskClarity.msi` - Alternative Windows installer
+
+### Build from Source
+```bash
+# Clone the repository
+git clone https://github.com/Ezeny1337/DiskClarity.git
+cd DiskClarity
+
+# Install dependencies
+npm install
+
+# Development mode
+npm run tauri dev
+
+# Build for production
+npm run tauri build
+```
 
 ## 🛠️ Support
 
