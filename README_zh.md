@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  📑 <a href="#-概述">概述</a> • <a href="#-特性">特性</a> • <a href="#%EF%B8%8F-支持">支持</a> • <a href="#%EF%B8%8F-license">许可证</a>
+  📑 <a href="#-概述">概述</a> • <a href="#-特性">特性</a> • <a href="#-安装">安装</a> • <a href="#%EF%B8%8F-支持">支持</a> • <a href="#%EF%B8%8f-许可证">许可证</a>
 </p>
 
 <p align="center">
@@ -21,29 +21,62 @@
 
 ## 📖 概述
 
-**DiskClarity** 是一款开源、高效、轻量的磁盘空间分析工具。它为用户提供了清晰直观的方式来可视化磁盘使用情况，识别大文件和目录，并有效优化存储空间。
+**DiskClarity** 是一款开源的高性能轻量化磁盘空间分析工具，使用 MFT 与现代化 UI 提供极快的扫描速度和全面的存储分析。
 
 ### 🚀 特性
 
-**一、极致效率**
-- **Rust 构建**: 最大的性能和内存安全性
-- **NTFS MFT 解析**: 直接读取 NTFS 的主文件表 (MFT) 进行高效扫描
-- **并行处理**: 使用 Rayon 库实现多线程并行扫描
-- **异步处理**: 非阻塞、高效率的扫描
-- **传输优化**: 最大程度减少前后端数据传输量
+**⚡ 极致性能**
+- **NTFS MFT 直接解析**: 直接读取 NTFS 的主文件表 (MFT) 进行极速扫描
+- **Rust 驱动后端**: 内存安全、零成本抽象，最大化性能
+- **并行处理**: 使用 Rayon 库实现多线程扫描
+- **优化数据传输**: 最大程度减少前后端数据传输量
+- **内存分配**: Mimalloc 高性能内存分配，减少碎片化
 
-**二、现代化界面**
-- React + Material-UI + Tailwind CSS 构建的现代化、美观、响应迅速的 Web UI
+**🎯 高级分析**
+- **快照系统**: 保存并比较磁盘文件的变化
+- **交互式可视化**: Treemap 图表和分层文件树
+- **分组筛选**: 按类型、扩展名分组文件或自定义搜索文件
+- **全面排序**: 按名称、大小、修改时间或文件数量排序
 
-**三、可视化分析**
-- 交互式 Treemap 图表与文件树，支持完善的排序、分类与分组功能，助力深度数据分析
-
-**四、极致轻量**
-- Tauri 轻量级框架构建，并最大程度优化打包体积
+**🎨 现代界面**
+- **多标签设计**: 同时处理多个分析任务
+- **流畅动画**: Framer Motion 驱动的微交互
+- **响应式布局**: Material-UI 组件配合 Tailwind CSS 样式
+- **国际化支持**: 完整的 i18next 支持
 
 ### 🎨 UI
-<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/3ce99b3f-da85-4430-b85f-533174ea18b2" />
-<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/a415e479-6c7e-4b83-86e4-d3fc439acb95" />
+<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/1e696e3f-b60a-486b-a0da-a8fd5a6b8744" />
+<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/317d13d8-f361-4fe9-938b-924b898d6145" />
+<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/a0413e92-b570-4777-b701-127f688608fd" />
+
+## 🧰 安装
+
+### 系统要求
+- **Windows 10/11**（MFT 解析需要 NTFS 文件系统，需要管理员运行）
+- **Node.js 18+**（开发环境）
+- **Rust 1.70+**（从源代码构建）
+
+### 预构建版本
+从 [GitHub Releases](https://github.com/Ezeny1337/DiskClarity/releases) 下载最新版本：
+- 便携版可用
+- `diskclarity-setup.exe` - Windows 安装程序
+- `DiskClarity.msi` - 备用 Windows 安装程序
+
+### 从源代码构建
+```bash
+# 克隆仓库
+git clone https://github.com/Ezeny1337/DiskClarity.git
+cd DiskClarity
+
+# 安装依赖
+npm install
+
+# 开发模式
+npm run tauri dev
+
+# 生产构建
+npm run tauri build
+```
 
 ## 🛠️ 支持
 
@@ -53,7 +86,7 @@ Discord ：**ez3nyck**
 
 QQ: 3443374192
 
-## ⚖️ License
+## ⚖️ 许可证
 
     Copyright [2025] [Ezeny1337]
 
