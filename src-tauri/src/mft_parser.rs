@@ -18,44 +18,49 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
     let usn_offset = u16::from_le_bytes([record_bytes[0x04], record_bytes[0x05]]) as usize;
     let usn_size = u16::from_le_bytes([record_bytes[0x06], record_bytes[0x07]]) as usize;
     
-    // 创建可变副本用于应用 fixup
-    let mut record_data = record_bytes.to_vec();
+    let mut fixup_buffer = None;
     
-    if usn_offset > 0 && usn_offset < record_data.len() && usn_size > 1 {
-        // 第一个 fixup 值是标记需要修复的扇区的修复值
-        if usn_offset + 2 <= record_data.len() {
-            let fixup_value = u16::from_le_bytes([
-                record_data[usn_offset],
-                record_data[usn_offset + 1],
-            ]);
-            
-            // 将每个 512 字节扇区末尾的修复值替换为 fixup 数组中的对应值
-            for i in 1..usn_size {
-                let sector_offset = i * 512 - 2; // 每个 512 字节扇区的最后 2 字节
-                let fixup_offset = usn_offset + i * 2;
-                
-                if sector_offset < record_data.len() && fixup_offset + 2 <= record_data.len() {
-                    // 检查扇区末尾是否与修复值匹配
-                    let sector_end = u16::from_le_bytes([
-                        record_data[sector_offset],
-                        record_data[sector_offset + 1],
-                    ]);
-                    
-                    if sector_end == fixup_value {
-                        let correct_value = u16::from_le_bytes([
-                            record_data[fixup_offset],
-                            record_data[fixup_offset + 1],
-                        ]);
-                        record_data[sector_offset] = correct_value as u8;
-                        record_data[sector_offset + 1] = (correct_value >> 8) as u8;
-                    }
+    // 第一个 fixup 值是标记需要修复的扇区的修复值
+    if usn_offset > 0 && usn_offset + usn_size * 2 <= record_bytes.len() && usn_size > 1 {
+        let fixup_value = u16::from_le_bytes([
+            record_bytes[usn_offset],
+            record_bytes[usn_offset + 1],
+        ]);
+        
+        // 将每个 512 字节扇区末尾的修复值替换为 fixup 数组中的对应值
+        let mut needs_fixup = false;
+        for i in 1..usn_size {
+            let sector_offset = i * 512 - 2; // 每个 512 字节扇区的最后 2 字节
+            if sector_offset + 2 <= record_bytes.len() {
+                let sector_end = u16::from_le_bytes([
+                    record_bytes[sector_offset],
+                    record_bytes[sector_offset + 1],
+                ]);
+                if sector_end == fixup_value {
+                    needs_fixup = true;
+                    break;
                 }
             }
+        }
+
+        if needs_fixup {
+            let mut data = record_bytes.to_vec();
+            for i in 1..usn_size {
+                let sector_offset = i * 512 - 2;
+                let fixup_offset = usn_offset + i * 2;
+                let correct_value = u16::from_le_bytes([
+                    data[fixup_offset],
+                    data[fixup_offset + 1],
+                ]);
+                data[sector_offset] = correct_value as u8;
+                data[sector_offset + 1] = (correct_value >> 8) as u8;
+            }
+            fixup_buffer = Some(data);
         }
     }
     
     // 使用修复后的记录数据进行解析
-    let record_bytes = &record_data;
+    let record_bytes = fixup_buffer.as_deref().unwrap_or(record_bytes);
 
     // 检查记录是否在使用中（0x16 标志的第 0 位）
     let flags = u16::from_le_bytes([record_bytes[0x16], record_bytes[0x17]]);

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { Minus, Square, X, Copy } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const WindowControls: React.FC = () => {
+    const { t } = useTranslation();
     const [isMaximized, setIsMaximized] = useState(false);
     useEffect(() => {
         const appWindow = WebviewWindow.getCurrent();
@@ -36,7 +38,7 @@ export const WindowControls: React.FC = () => {
                 onClick={handleMinimize}
                 onMouseDown={(e) => e.stopPropagation()}
                 className="p-2 hover:bg-white/10 rounded-md text-text-muted hover:text-text transition-colors"
-                title="最小化"
+                title={t('common.minimize')}
             >
                 <Minus size={16} />
             </button>
@@ -44,7 +46,7 @@ export const WindowControls: React.FC = () => {
                 onClick={handleMaximize}
                 onMouseDown={(e) => e.stopPropagation()}
                 className="p-2 hover:bg-white/10 rounded-md text-text-muted hover:text-text transition-colors"
-                title={isMaximized ? "向下还原" : "最大化"}
+                title={isMaximized ? t('common.unmaximize') : t('common.maximize')}
             >
                 {isMaximized ? <Copy size={16} /> : <Square size={16} />}
             </button>
@@ -52,7 +54,7 @@ export const WindowControls: React.FC = () => {
                 onClick={handleClose}
                 onMouseDown={(e) => e.stopPropagation()}
                 className="p-2 hover:bg-red-500 hover:text-white rounded-md text-text-muted transition-colors"
-                title="关闭"
+                title={t('common.close')}
             >
                 <X size={16} />
             </button>

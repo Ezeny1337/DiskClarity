@@ -8,17 +8,10 @@ import type { FileNode, ScanConfig, ScanProgress } from '../store/scanStore';
  * 调用后端的 start_scan 命令，并解压返回的 MessagePack 数据
  */
 export async function startScan(path: string, config: ScanConfig): Promise<FileNode> {
-  try {
-    const compressedData = await invoke<number[]>('start_scan', { path, config });
-
-    const uint8Array = new Uint8Array(compressedData);
-    const decompressed = pako.ungzip(uint8Array);
-
-    return decode(decompressed) as FileNode;
-  } catch (error) {
-    console.error('Error in startScan:', error);
-    throw error;
-  }
+  const compressedData = await invoke<number[]>('start_scan', { path, config });
+  const uint8Array = new Uint8Array(compressedData);
+  const decompressed = pako.ungzip(uint8Array);
+  return decode(decompressed) as FileNode;
 }
 
 /**
@@ -32,7 +25,7 @@ export async function getScanProgress(): Promise<ScanProgress> {
  * 取消当前正在进行的扫描
  */
 export async function cancelScan(): Promise<void> {
-  return await invoke<void>('cancel_scan');
+  await invoke<void>('cancel_scan');
 }
 
 /**

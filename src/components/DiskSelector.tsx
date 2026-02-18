@@ -83,7 +83,7 @@ export const DiskSelector: React.FC<DiskSelectorProps> = ({ onSelect }) => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-4xl flex flex-col items-center gap-8"
       >
-        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-white/50">
+        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-linear-to-b from-white to-white/50">
           {t('diskSelector.title')}
         </h1>
 
@@ -147,7 +147,7 @@ export const DiskSelector: React.FC<DiskSelectorProps> = ({ onSelect }) => {
                       animate={{ scale: 1 }}
                       className="absolute top-4 right-4 text-primary bg-primary/20 p-1 rounded-full"
                     >
-                      <Check size={20} className="stroke-[3]" />
+                      <Check size={20} className="stroke-3" />
                     </motion.div>
                   )}
 

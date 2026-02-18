@@ -1,10 +1,27 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GitHubLatestRelease {
+    pub tag_name: String,
+    pub html_url: Option<String>,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitHubRelease {
+    pub tag_name: String,
+    pub name: Option<String>,
+    pub body: Option<String>,
+    pub html_url: Option<String>,
+    pub published_at: Option<String>,
+    pub prerelease: Option<bool>,
+    pub draft: Option<bool>,
+}
+
 // 文件树节点结构，用于序列化和前端展示
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileNode {
     pub name: String,
-    pub path: String,
     pub size: u64,
     pub is_dir: bool,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -39,6 +56,14 @@ pub struct ScanConfig {
     pub max_threads: Option<usize>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskInfo {
+    pub path: String,
+    pub total_space: u64,
+    pub available_space: u64,
+    pub used_space: u64,
+}
+
 // MFT 解析后的节点信息
 #[derive(Clone, Debug)]
 pub struct MftNode {
@@ -48,7 +73,6 @@ pub struct MftNode {
     pub size: u64,
     pub is_dir: bool,
     pub modified_time: u64,
-    #[allow(dead_code)]
     pub link_count: u16,
     pub needs_size_fallback: bool, // 是否需要从文件系统获取大小
 }
@@ -88,6 +112,5 @@ pub struct NtfsVolumeInfo {
     pub bytes_per_cluster: u64,
     pub bytes_per_mft_record: u64,
     pub mft_start_lcn: u64,
-    #[allow(dead_code)]
     pub mft_valid_data_length: u64,
 }

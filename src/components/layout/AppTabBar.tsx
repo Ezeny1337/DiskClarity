@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTabStore, TabData } from '../../store/tabStore';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
-import { X, Plus, Home, HardDrive, Image as ImageIcon } from 'lucide-react';
+import { X, Plus, Home, HardDrive, Image as ImageIcon, GitCompare } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export const AppTabBar: React.FC = () => {
@@ -31,6 +31,8 @@ export const AppTabBar: React.FC = () => {
                 return <HardDrive size={14} />;
             case 'snapshot-analysis':
                 return <ImageIcon size={14} />;
+            case 'snapshot-diff':
+                return <GitCompare size={14} />;
             default:
                 return <Home size={14} />;
         }
@@ -62,7 +64,7 @@ export const AppTabBar: React.FC = () => {
                                 exit={{ opacity: 0, scale: 0.8, width: 0 }}
                                 transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                                 className={cn(
-                                    "group relative flex items-center gap-2 px-3 py-1.5 rounded-md text-sm cursor-pointer transition-colors border border-transparent min-w-[120px] max-w-[200px] pointer-events-auto shrink-0",
+                                    "group relative flex items-center gap-2 px-3 py-1.5 rounded-md text-sm cursor-pointer transition-colors border border-transparent min-w-30 max-w-50 pointer-events-auto shrink-0",
                                     tab.id === activeTabId
                                         ? "bg-surface2 text-white border-white/10 shadow-sm"
                                         : "text-text-muted hover:bg-white/5 hover:text-text"
@@ -77,7 +79,7 @@ export const AppTabBar: React.FC = () => {
                                     />
                                 )}
 
-                                <span className="opacity-70 flex-shrink-0">{getTabIcon(tab.type)}</span>
+                                <span className="opacity-70 shrink-0">{getTabIcon(tab.type)}</span>
                                 <span className="truncate flex-1 font-medium select-none">{tab.title}</span>
 
                                 {(tabs.length > 1 || tab.id === activeTabId) && (
@@ -85,7 +87,7 @@ export const AppTabBar: React.FC = () => {
                                         onClick={(e) => handleCloseTab(e, tab.id)}
                                         onMouseDown={(e) => e.stopPropagation()}
                                         className={cn(
-                                            "p-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 hover:text-red-400 flex-shrink-0 relative z-30",
+                                            "p-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 hover:text-red-400 shrink-0 relative z-30",
                                             tab.id === activeTabId ? "opacity-100" : ""
                                         )}
                                     >
@@ -101,7 +103,7 @@ export const AppTabBar: React.FC = () => {
             <button
                 onClick={handleNewTab}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="ml-1 p-1.5 rounded-md text-text-muted hover:text-text hover:bg-white/5 transition-colors flex-shrink-0 pointer-events-auto relative z-30"
+                className="ml-1 p-1.5 rounded-md text-text-muted hover:text-text hover:bg-white/5 transition-colors shrink-0 pointer-events-auto relative z-30"
                 title={t('tabs.newTab')}
             >
                 <Plus size={16} />

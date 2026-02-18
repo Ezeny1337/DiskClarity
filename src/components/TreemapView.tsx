@@ -3,11 +3,13 @@ import { Box, Paper, Typography, Breadcrumbs, Link, Chip, Stack, IconButton, Too
 import { useTranslation } from 'react-i18next';
 import { FileNode } from '../store/scanStore';
 import { useTabStore } from '../store/tabStore';
+import { useSnapshotStore } from '../store/snapshotStore';
 import { formatBytes } from '../utils/format';
 import { Folder, InsertDriveFile, NavigateNext, ContentCopy, FolderOutlined } from '@mui/icons-material';
 import { invoke } from '@tauri-apps/api/core';
 import { groupFileNodes, sortGroupedNodes } from '../utils/grouping';
 import { buildBreadcrumbs, updateCurrentTabData } from '../utils/tabNavigation';
+import { filterFileTree, findNodeByPath, hasDiskSearchFilter, type DiskSearchCriteria } from '../utils/diskSearch';
 
 interface TreemapRect {
   x: number;
@@ -33,15 +35,39 @@ export const TreemapView: React.FC = () => {
   const activeTabId = useTabStore((state) => state.activeTabId);
   const tabs = useTabStore((state) => state.tabs);
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId) || null, [tabs, activeTabId]);
+  const { showFilesOnly } = useSnapshotStore();
 
   // 从 tab data 中读取状态
   const currentNode = activeTab?.data?.currentNode || null;
   const scanResult = activeTab?.data?.scanResult || null;
-  const breadcrumbs = activeTab?.data?.breadcrumbs || [];
   const groupBy = activeTab?.data?.groupBy || 'none';
   const sortField = activeTab?.data?.sortField || 'size';
   const sortOrder = activeTab?.data?.sortOrder || 'desc';
   const flatGrouping = activeTab?.data?.flatGrouping || false;
+  const tabData = activeTab?.data;
+  const diskSearchCriteria = useMemo<DiskSearchCriteria>(() => ({
+    query: tabData?.diskSearchQuery || '',
+    mode: tabData?.diskSearchMode || 'contains',
+    caseSensitive: tabData?.diskSearchCaseSensitive || false,
+    nodeType: tabData?.diskSearchNodeType || 'all',
+    minSizeMb: tabData?.diskSearchMinSizeMb || '',
+    maxSizeMb: tabData?.diskSearchMaxSizeMb || '',
+    minSizeUnit: tabData?.diskSearchMinSizeUnit || 'MB',
+    maxSizeUnit: tabData?.diskSearchMaxSizeUnit || 'MB',
+    extensions: tabData?.diskSearchExtensions || [],
+    extensionMode: tabData?.diskSearchExtensionMode || 'include',
+  }), [
+    tabData?.diskSearchQuery,
+    tabData?.diskSearchMode,
+    tabData?.diskSearchCaseSensitive,
+    tabData?.diskSearchNodeType,
+    tabData?.diskSearchMinSizeMb,
+    tabData?.diskSearchMaxSizeMb,
+    tabData?.diskSearchMinSizeUnit,
+    tabData?.diskSearchMaxSizeUnit,
+    tabData?.diskSearchExtensions,
+    tabData?.diskSearchExtensionMode,
+  ]);
 
   const tGrouping = useCallback((key: string) => t(key), [t]);
 
@@ -52,14 +78,29 @@ export const TreemapView: React.FC = () => {
   const tooltipPosRef = useRef({ x: 0, y: 0 });
   const tooltipRafRef = useRef<number | null>(null);
 
-  const displayNode = currentNode || scanResult;
+  const filteredScanResult = useMemo(() => {
+    if (!scanResult) return null;
+    if (!hasDiskSearchFilter(diskSearchCriteria)) return scanResult;
+    return filterFileTree(scanResult, diskSearchCriteria);
+  }, [scanResult, diskSearchCriteria]);
+
+  const displayNode = useMemo(() => {
+    if (!filteredScanResult) return null;
+    if (!currentNode?.path) return filteredScanResult;
+    return findNodeByPath(filteredScanResult, currentNode.path) || filteredScanResult;
+  }, [currentNode?.path, filteredScanResult]);
+
+  const displayBreadcrumbs = useMemo(
+    () => buildBreadcrumbs(filteredScanResult, displayNode?.path || ''),
+    [filteredScanResult, displayNode?.path]
+  );
 
   const driveLabel = useMemo(() => {
     const rootPath = scanResult?.path || '';
     const match = rootPath.match(/^([A-Za-z]):/);
     if (match?.[1]) return match[1].toUpperCase();
     return t('treemapView.root');
-  }, [scanResult?.path, t]);
+  }, [filteredScanResult?.path, scanResult?.path, t]);
 
   // 正方形化树状图算法与对数缩放
   // 正方形化算法会优化矩形的长宽比，使其更接近正方形
@@ -268,8 +309,13 @@ export const TreemapView: React.FC = () => {
     if (containerSize.width <= 0 || containerSize.height <= 0) return [];
 
     if (displayNode.children && displayNode.children.length > 0) {
+      // 应用 files only 过滤
+      let childrenToDisplay = showFilesOnly 
+        ? displayNode.children.filter(child => !child.is_dir)
+        : displayNode.children;
+
       // 应用分组（传递当前节点的路径，避免在分组内再次分组）
-      let childrenToDisplay = groupFileNodes(displayNode.children, groupBy, displayNode.path, flatGrouping, tGrouping);
+      childrenToDisplay = groupFileNodes(childrenToDisplay, groupBy, displayNode.path, flatGrouping, tGrouping);
 
       // 应用排序
       childrenToDisplay = sortGroupedNodes(childrenToDisplay, sortField, sortOrder);
@@ -278,12 +324,12 @@ export const TreemapView: React.FC = () => {
     }
 
     return [];
-  }, [displayNode, containerSize, groupBy, sortField, sortOrder, flatGrouping, tGrouping]);
+  }, [displayNode, containerSize, groupBy, sortField, sortOrder, flatGrouping, tGrouping, showFilesOnly]);
 
   const handleRectClick = (rect: TreemapRect) => {
     if (!rect.node.is_dir) return;
 
-    const crumbs = buildBreadcrumbs(scanResult, rect.node.path);
+    const crumbs = buildBreadcrumbs(filteredScanResult, rect.node.path);
     updateCurrentTabData({
       currentNode: rect.node,
       breadcrumbs: crumbs,
@@ -294,11 +340,11 @@ export const TreemapView: React.FC = () => {
   const handleBreadcrumbClick = (index: number) => {
     if (index === -1) {
       updateCurrentTabData({
-        currentNode: scanResult,
+        currentNode: filteredScanResult,
         breadcrumbs: [],
       });
     } else {
-      const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
+      const newBreadcrumbs = displayBreadcrumbs.slice(0, index + 1);
       updateCurrentTabData({
         currentNode: newBreadcrumbs[index],
         breadcrumbs: newBreadcrumbs,
@@ -405,7 +451,7 @@ export const TreemapView: React.FC = () => {
                 <Folder fontSize="small" />
                 {driveLabel}
               </Link>
-              {breadcrumbs.map((node, index) => (
+              {displayBreadcrumbs.map((node, index) => (
                 <Link
                   key={node.path}
                   component="button"

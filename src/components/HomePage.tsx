@@ -120,7 +120,7 @@ const HomeCard: React.FC<HomeCardProps> = ({ title, icon, description, onClick, 
     >
       {/* Inner Gradient */}
       <div className={cn(
-        "absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br",
+        "absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-linear-to-br",
         gradient
       )} />
 

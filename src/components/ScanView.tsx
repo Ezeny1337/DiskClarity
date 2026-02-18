@@ -1,14 +1,20 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useScanStore } from '../store/scanStore';
 import { useTabStore } from '../store/tabStore';
-import { startScan, getScanProgress } from '../services/scanService';
+import { getScanProgress } from '../services/scanService';
+import { saveSnapshot } from '../services/snapshotService';
 import { formatBytes } from '../utils/format';
+import { getStageText, formatDuration } from '../utils/scanUtils';
 import { TreemapView } from './TreemapView';
 import { FileList } from './FileList';
 import { GroupOptions } from './GroupOptions';
 import { motion } from 'framer-motion';
 import { Card } from './ui/Card';
+import {
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, Button,
+} from '@mui/material';
 
 interface ScanViewProps {
   drive: string;
@@ -20,6 +26,12 @@ export const ScanView: React.FC<ScanViewProps> = ({ drive }) => {
   const activeTab = getActiveTab();
   const lastDurationRef = useRef<number>(0);
   const scanningRef = useRef<boolean>(false);
+  const rawDataRef = useRef<number[] | null>(null);
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
+  const [snapshotSaved, setSnapshotSaved] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [showLabelDialog, setShowLabelDialog] = useState(false);
+  const [labelInput, setLabelInput] = useState('');
 
   const { scanConfig } = useScanStore();
 
@@ -36,6 +48,9 @@ export const ScanView: React.FC<ScanViewProps> = ({ drive }) => {
 
     const performScan = async () => {
       lastDurationRef.current = 0;
+      rawDataRef.current = null;
+      setSnapshotSaved(false);
+      setSnapshotError(null);
       updateCurrentTab({
         data: {
           ...activeTab?.data,
@@ -47,7 +62,26 @@ export const ScanView: React.FC<ScanViewProps> = ({ drive }) => {
       });
 
       try {
-        const result = await startScan(drive, scanConfig);
+        const { invoke } = await import('@tauri-apps/api/core');
+        const pako = await import('pako');
+        const { decode } = await import('@msgpack/msgpack');
+        const compressed = await invoke<number[]>('start_scan', { path: drive, config: scanConfig });
+        rawDataRef.current = compressed;
+        const uint8Array = new Uint8Array(compressed);
+        const decompressed = pako.ungzip(uint8Array);
+        const result = decode(decompressed) as import('../store/scanStore').FileNode;
+
+        // 递归重建路径以匹配前端结构
+        const reconstructPaths = (node: any, parentPath: string) => {
+          node.path = parentPath ? `${parentPath}\\${node.name}` : node.name;
+          if (node.children) {
+            for (const child of node.children) {
+              reconstructPaths(child, node.path);
+            }
+          }
+        };
+        reconstructPaths(result, '');
+
         const progress = {
           scanned_files: result.file_count,
           scanned_dirs: result.dir_count,
@@ -83,6 +117,8 @@ export const ScanView: React.FC<ScanViewProps> = ({ drive }) => {
             error: String(err),
           },
         });
+      } finally {
+        scanningRef.current = false;
       }
     };
 
@@ -169,48 +205,132 @@ export const ScanView: React.FC<ScanViewProps> = ({ drive }) => {
   }
 
 
+  const handleSaveSnapshot = () => {
+    if (!rawDataRef.current) return;
+    setLabelInput('');
+    setShowLabelDialog(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!rawDataRef.current) return;
+    setShowLabelDialog(false);
+    setIsSavingSnapshot(true);
+    setSnapshotError(null);
+    setSnapshotSaved(false);
+    try {
+      await saveSnapshot(rawDataRef.current, drive, labelInput.trim() || undefined);
+      setSnapshotSaved(true);
+      setTimeout(() => setSnapshotSaved(false), 3000);
+    } catch (err) {
+      setSnapshotError(String(err));
+    } finally {
+      setIsSavingSnapshot(false);
+    }
+  };
+
   // 完成视图
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-background">
-      <div className="flex-1 flex min-h-0">
-        {/* 侧边栏信息 */}
-        <div className="w-80 flex-shrink-0 flex flex-col gap-4 p-4 border-r border-white/5 bg-zinc-900/30 overflow-y-auto custom-scrollbar">
-          {scanProgress && (
-            <Card className="p-4 space-y-4 bg-zinc-900/50 backdrop-blur-md">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">{drive}</h2>
-                <span className="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">Completed</span>
-              </div>
+    <>
+      <div className="h-full flex flex-col overflow-hidden bg-background">
+        <div className="flex-1 flex min-h-0">
+          {/* 侧边栏信息 */}
+          <div className="w-80 shrink-0 flex flex-col gap-4 p-4 border-r border-white/5 bg-zinc-900/30 overflow-y-auto custom-scrollbar">
+            {scanProgress && (
+              <Card className="p-4 space-y-4 bg-zinc-900/50 backdrop-blur-md">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">{drive}</h2>
+                  <span className="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">{t('scanControl.complete')}</span>
+                </div>
 
-              <div className="space-y-3">
-                <StatRow label={t('scanView.files')} value={(scanProgress.scanned_files || 0).toLocaleString()} />
-                <StatRow label={t('scanView.dirs')} value={(scanProgress.scanned_dirs || 0).toLocaleString()} />
-                <StatRow label={t('scanView.size')} value={formatBytes(scanProgress.total_size || 0)} />
-                <StatRow label={t('scanView.time')} value={formatDuration(scanProgress.duration_ms || 0, t)} />
-              </div>
-            </Card>
-          )}
+                <div className="space-y-3">
+                  <StatRow label={t('scanView.files')} value={(scanProgress.scanned_files || 0).toLocaleString()} />
+                  <StatRow label={t('scanView.dirs')} value={(scanProgress.scanned_dirs || 0).toLocaleString()} />
+                  <StatRow label={t('scanView.size')} value={formatBytes(scanProgress.total_size || 0)} />
+                  <StatRow label={t('scanView.time')} value={formatDuration(scanProgress.duration_ms || 0, t)} />
+                </div>
 
-          <GroupOptions />
-        </div>
+                {/* 保存快照按钮 */}
+                <button
+                  onClick={handleSaveSnapshot}
+                  disabled={isSavingSnapshot || !rawDataRef.current || snapshotSaved}
+                  className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${snapshotSaved
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                    : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed'
+                    }`}
+                >
+                  {isSavingSnapshot ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-blue-400/50 border-t-blue-400 rounded-full animate-spin" />
+                      {t('snapshot.saving')}
+                    </>
+                  ) : snapshotSaved ? (
+                    <>
+                      <span>✓</span>
+                      {t('snapshot.saved')}
+                    </>
+                  ) : (
+                    <>
+                      <span>📷</span>
+                      {t('snapshot.saveSnapshot')}
+                    </>
+                  )}
+                </button>
+                {snapshotError && (
+                  <p className="text-xs text-red-400 mt-1">{snapshotError}</p>
+                )}
+              </Card>
+            )}
 
-        {/* 主要内容 - 可滚动 */}
-        <div className="flex-1 flex flex-col min-w-0 p-4 gap-6 overflow-y-auto custom-scrollbar">
-          <div className="flex-none h-[650px] rounded-xl border border-white/5 bg-zinc-900/20 overflow-hidden relative">
-            <TreemapView />
+            <GroupOptions />
           </div>
-          <div className="flex-none min-h-[600px] rounded-xl border border-white/5 bg-zinc-900/20 overflow-hidden relative">
-            <FileList />
+
+          {/* 主要内容 */}
+          <div className="flex-1 flex flex-col min-w-0 p-4 gap-6 overflow-y-auto custom-scrollbar">
+            <div className="flex-none h-162.5 rounded-xl border border-white/5 bg-zinc-900/20 overflow-hidden relative">
+              <TreemapView />
+            </div>
+            <div className="flex-none min-h-150 rounded-xl border border-white/5 bg-zinc-900/20 overflow-hidden relative">
+              <FileList />
+            </div>
           </div>
         </div>
-      </div>
-      <style>{`
+        <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 0px;
           background: transparent;
         }
       `}</style>
-    </div>
+      </div>
+
+      {/* 快照命名对话框 */}
+      <Dialog
+        open={showLabelDialog}
+        onClose={() => setShowLabelDialog(false)}
+        PaperProps={{ sx: { bgcolor: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3, minWidth: 360 } }}
+      >
+        <DialogTitle sx={{ color: 'white', fontWeight: 700 }}>{t('snapshot.saveSnapshot')}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            variant="outlined"
+            label={t('snapshot.labelPlaceholder')}
+            value={labelInput}
+            onChange={(e) => setLabelInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
+            sx={{
+              mt: 1,
+              '& .MuiOutlinedInput-root': { color: 'white', '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' }, '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' }, '&.Mui-focused fieldset': { borderColor: '#8b5cf6' } },
+              '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button onClick={() => setShowLabelDialog(false)} sx={{ color: 'rgba(255,255,255,0.5)' }}>{t('common.cancel')}</Button>
+          <Button onClick={handleConfirmSave} variant="contained" sx={{ bgcolor: '#8b5cf6', '&:hover': { bgcolor: '#7c3aed' } }}>{t('common.confirm')}</Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 
@@ -229,25 +349,3 @@ const StatRow = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-function getStageText(stage: string, t: (key: string) => string): string {
-  switch (stage) {
-    case 'scanning': return t('scanControl.scanning');
-    case 'fetching_sizes': return t('scanControl.fetchingSizes');
-    case 'building_tree': return t('scanControl.buildingTree');
-    case 'serializing': return t('scanControl.serializing');
-    case 'complete': return t('scanControl.complete');
-    default: return t('scanControl.processing');
-  }
-}
-
-function formatDuration(ms: number, t: (key: string, options?: any) => string): string {
-  if (ms < 1000) return t('common.time.millisecond', { count: ms });
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return t('common.time.second', { count: seconds });
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (minutes < 60) return remainingSeconds > 0 ? t('common.time.minuteWithSeconds', { minutes, seconds: remainingSeconds }) : t('common.time.minute', { minutes });
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? t('common.time.hourWithMinutes', { hours, minutes: remainingMinutes }) : t('common.time.hour', { hours });
-}

@@ -36,7 +36,7 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     "react-vendor": ["react", "react-dom"],
-                    "ui-vendor": ["@mui/material", "@mui/icons-material"],
+                    "ui-vendor": ["@mui/material", "lucide-react"],
                     "i18n": ["i18next", "react-i18next"],
                     "tauri": ["@tauri-apps/api", "@tauri-apps/plugin-opener"],
                     "state": ["zustand"],
@@ -56,7 +56,7 @@ export default defineConfig({
         },
         // 启用 CSS 代码分割
         cssCodeSplit: true,
-         // 使用最新的 JavaScript 版本
+        // 使用最新的 JavaScript 版本
         target: "esnext",
         // terser 最小化配置
         minify: "terser",

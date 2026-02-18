@@ -8,14 +8,15 @@ version = "3.0.0"
 dependencies = [
  "flate2",
  "mimalloc",
- "num_cpus",
  "parking_lot",
  "rayon",
  "rmp-serde",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "thiserror 2.0.18",
  "tokio",
  "ureq",
  "windows 0.62.2",
@@ -2181,16 +2182,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num_cpus"
-version = "1.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
-dependencies = [
- "hermit-abi",
- "libc",
-]
-
-[[package]]
 name = "num_enum"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4152,7 +4143,6 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2",
  "windows-sys 0.61.2",
 ]

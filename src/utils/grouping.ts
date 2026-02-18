@@ -120,7 +120,7 @@ export function groupFileNodes(
   flatGrouping: boolean = false,
   t?: (key: string) => string
 ): FileNode[] {
-  if (groupBy === 'none' || !nodes || nodes.length === 0) {
+  if (groupBy === 'none' || !nodes?.length) {
     return nodes;
   }
 
@@ -136,7 +136,7 @@ export function groupFileNodes(
     files = collectAllFiles(nodes);
   }
 
-  if (files.length === 0) {
+  if (!files.length) {
     return directories;
   }
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { FileNode, ScanProgress, SortField, SortOrder, GroupBy } from './scanStore';
 
-export type TabType = 'home' | 'disk-scan' | 'snapshot-analysis';
+export type TabType = 'home' | 'disk-scan' | 'snapshot-analysis' | 'snapshot-diff';
 
 export interface TabData {
   id: string;
@@ -24,6 +24,22 @@ export interface TabData {
     sortOrder?: SortOrder;
     groupBy?: GroupBy;
     flatGrouping?: boolean;
+
+    // Disk Scan 搜索筛选
+    diskSearchQuery?: string;
+    diskSearchMode?: 'contains' | 'regex' | 'exclude';
+    diskSearchCaseSensitive?: boolean;
+    diskSearchNodeType?: 'all' | 'file' | 'dir';
+    diskSearchMinSizeMb?: string;
+    diskSearchMaxSizeMb?: string;
+    diskSearchMinSizeUnit?: 'B' | 'KB' | 'MB' | 'GB';
+    diskSearchMaxSizeUnit?: 'B' | 'KB' | 'MB' | 'GB';
+    diskSearchExtensions?: string[];
+    diskSearchExtensionMode?: 'include' | 'exclude';
+
+    // Snapshot Diff 相关数据
+    snapshotAId?: string;
+    snapshotBId?: string;
   };
 }
 

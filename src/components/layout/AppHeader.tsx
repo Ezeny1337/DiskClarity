@@ -107,7 +107,7 @@ export const AppHeader: React.FC = () => {
         <header
             onMouseDown={handleMouseDown}
             data-tauri-drag-region
-            className="flex h-12 items-center justify-between px-3 border-b border-white/5 bg-zinc-900/50 backdrop-blur-xl select-none relative !cursor-default active:bg-white/5 transition-colors"
+            className="flex h-12 items-center justify-between px-3 border-b border-white/5 bg-zinc-900/50 backdrop-blur-xl select-none relative cursor-default! active:bg-white/5 transition-colors"
         >
             {/* Logo Area */}
             <div className="flex items-center gap-3 w-48 shrink-0 select-none pointer-events-none">

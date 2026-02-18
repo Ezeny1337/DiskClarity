@@ -9,6 +9,16 @@ export interface UpdateInfo {
   releaseNotes?: string;
 }
 
+export interface GitHubRelease {
+  tag_name: string;
+  name?: string;
+  body?: string;
+  html_url?: string;
+  published_at?: string;
+  prerelease?: boolean;
+  draft?: boolean;
+}
+
 const GITHUB_REPO = 'Ezeny1337/DiskClarity';
 
 /**
@@ -36,8 +46,22 @@ export async function checkForUpdates(): Promise<UpdateInfo> {
       releaseNotes: data.body,
     };
   } catch (error) {
-    console.error('Update check failed:', error);
     throw new Error('update_check_failed');
+  }
+}
+
+/**
+ * 获取 GitHub Releases
+ */
+export async function getChangelogReleases(limit = 20): Promise<GitHubRelease[]> {
+  try {
+    const releases = await invoke<GitHubRelease[]>('get_releases', {
+      repo: GITHUB_REPO,
+      limit,
+    });
+    return Array.isArray(releases) ? releases : [];
+  } catch (error) {
+    throw new Error('changelog_load_failed');
   }
 }
 

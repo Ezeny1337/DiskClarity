@@ -47,4 +47,9 @@
   .glass-panel {
     @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5 shadow-xl;
   }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+  }
 }
