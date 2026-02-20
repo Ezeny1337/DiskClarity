@@ -1,10 +1,13 @@
-use crate::error::AppResult;
-use crate::models::{ScanConfig, ScanProgress, DiskInfo};
+use crate::error::{AppError, AppResult};
 use crate::mft_scanner::MftScanner;
-use crate::snapshot::{SnapshotMeta, DiffResult};
+use crate::models::{DiskInfo, ScanConfig, ScanProgress};
+use crate::snapshot::{DiffResult, SnapshotMeta};
 use crate::ScannerState;
-use tauri::State;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use std::io::Write;
 use std::sync::Arc;
+use tauri::State;
 use tokio::task;
 
 fn github_token_from_env() -> Option<String> {
@@ -13,64 +16,61 @@ fn github_token_from_env() -> Option<String> {
         .filter(|v| !v.trim().is_empty())
 }
 
+/// 将字节切片 gzip 压缩后返回
+fn gzip_compress(data: &[u8]) -> AppResult<Vec<u8>> {
+    let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
+    enc.write_all(data)
+        .map_err(|e| AppError::Compression(e.to_string()))?;
+    enc.finish()
+        .map_err(|e| AppError::Compression(e.to_string()))
+}
+
 #[tauri::command]
 pub async fn start_scan(
     path: String,
     config: ScanConfig,
+    task_id: String,
     state: State<'_, ScannerState>,
 ) -> AppResult<Vec<u8>> {
     let scanner = Arc::new(MftScanner::new());
-    
-    {
-        let mut scanner_lock = state.scanner.lock();
-        *scanner_lock = Some(scanner.clone());
-    }
 
-    let result = task::spawn_blocking(move || {
-        scanner.scan(&path, config)
-    })
-    .await??;
-    
-    // 序列化
-    let msgpack_data = rmp_serde::to_vec_named(&result)
-        .map_err(|e| crate::error::AppError::Serialization(e.to_string()))?;
-    
-    use flate2::write::GzEncoder;
-    use flate2::Compression;
-    use std::io::Write;
-    
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-    encoder.write_all(&msgpack_data)
-        .map_err(|e| crate::error::AppError::Compression(e.to_string()))?;
-    let compressed_data = encoder.finish()
-        .map_err(|e| crate::error::AppError::Compression(e.to_string()))?;
-    
-    {
-        let mut scanner_lock = state.scanner.lock();
-        *scanner_lock = None;
-    }
-    
-    Ok(compressed_data)
+    state
+        .scanners
+        .lock()
+        .insert(task_id.clone(), scanner.clone());
+
+    let scan_result = task::spawn_blocking(move || scanner.scan(&path, config)).await;
+
+    state.scanners.lock().remove(&task_id);
+
+    let result = scan_result??;
+
+    // msgpack 序列化后 gzip 压缩，利用 From<rmp_serde::encode::Error> 自动转换
+    let msgpack_data = rmp_serde::to_vec_named(&result)?;
+    gzip_compress(&msgpack_data)
 }
 
 #[tauri::command]
-pub async fn get_scan_progress(state: State<'_, ScannerState>) -> AppResult<ScanProgress> {
-    let scanner_lock = state.scanner.lock();
-    if let Some(scanner) = scanner_lock.as_ref() {
+pub async fn get_scan_progress(
+    task_id: String,
+    state: State<'_, ScannerState>,
+) -> AppResult<ScanProgress> {
+    let scanners = state.scanners.lock();
+    if let Some(scanner) = scanners.get(&task_id) {
         Ok(scanner.get_progress())
     } else {
-        Err(crate::error::AppError::NoActiveScan)
+        Err(AppError::NoActiveScan)
     }
 }
 
 #[tauri::command]
-pub async fn cancel_scan(state: State<'_, ScannerState>) -> AppResult<()> {
-    let scanner_lock = state.scanner.lock();
-    if let Some(scanner) = scanner_lock.as_ref() {
+pub async fn cancel_scan(task_id: String, state: State<'_, ScannerState>) -> AppResult<()> {
+    let scanners = state.scanners.lock();
+    if let Some(scanner) = scanners.get(&task_id) {
         scanner.cancel();
         Ok(())
     } else {
-        Err(crate::error::AppError::NoActiveScan)
+        Err(AppError::NoActiveScan)
     }
 }
 
@@ -86,12 +86,8 @@ pub async fn get_drives() -> AppResult<Vec<String>> {
                 drives.push(drive);
             }
         }
-        Ok(drives)
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        Ok(vec!["/".to_string()])
-    }
+        return Ok(drives);
+    };
 }
 
 #[tauri::command]
@@ -101,20 +97,67 @@ pub fn get_cpu_count() -> usize {
         .unwrap_or(1)
 }
 
+/// 当页面最小化时时设置 WebView2 内存使用目标为 Low
+#[tauri::command]
+pub fn set_webview_memory_level(low: bool, window: tauri::WebviewWindow) -> AppResult<()> {
+    #[cfg(windows)]
+    {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+        };
+        use windows_core::Interface as _;
+        window
+            .with_webview(move |wv| unsafe {
+                let core = match wv.controller().CoreWebView2() {
+                    Ok(c) => c,
+                    Err(_) => return,
+                };
+                let core19: ICoreWebView2_19 = match core.cast() {
+                    Ok(c) => c,
+                    Err(_) => return,
+                };
+                let level = if low {
+                    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+                } else {
+                    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+                };
+                let _ = core19.SetMemoryUsageTargetLevel(level);
+            })
+            .ok();
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_in_explorer(path: String) -> AppResult<()> {
     #[cfg(target_os = "windows")]
     {
+        use std::path::Path;
         use std::process::Command;
-        let p = std::path::Path::new(&path);
-        let normalized_path = p.canonicalize()?;
-        let is_file = p.is_file();
-        
-        let mut cmd = Command::new("explorer");
-        if is_file {
-            cmd.args(["/select,", normalized_path.to_string_lossy().as_ref()]);
+
+        let original = Path::new(&path);
+
+        let (target, use_select) = if original.exists() {
+            let canonical = original.canonicalize()?;
+            let is_file = canonical.is_file();
+            (canonical, is_file)
         } else {
-            cmd.arg(normalized_path);
+            let mut ancestor = original.parent();
+            loop {
+                match ancestor {
+                    Some(p) if p.exists() => break (p.canonicalize()?, false),
+                    Some(p) => ancestor = p.parent(),
+                    None => return Ok(()),
+                }
+            }
+        };
+
+        let mut cmd = Command::new("explorer");
+        if use_select {
+            cmd.args(["/select,", target.to_string_lossy().as_ref()]);
+        } else {
+            cmd.arg(&target);
         }
         cmd.spawn()?;
         Ok(())
@@ -130,30 +173,31 @@ pub async fn get_disk_info(path: String) -> AppResult<DiskInfo> {
     task::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
         {
-            use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
-            use windows::core::PCWSTR;
             use std::os::windows::ffi::OsStrExt;
-            
+            use windows::core::PCWSTR;
+            use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
             let wide_path: Vec<u16> = std::ffi::OsStr::new(&path)
                 .encode_wide()
                 .chain(std::iter::once(0))
                 .collect();
-            
-            let mut available_bytes: u64 = 0;
-            let mut total_bytes: u64 = 0;
-            let mut free_bytes: u64 = 0;
-            
+
+            let mut available_bytes = 0u64;
+            let mut total_bytes = 0u64;
+            let mut free_bytes = 0u64;
+
             unsafe {
                 GetDiskFreeSpaceExW(
                     PCWSTR(wide_path.as_ptr()),
                     Some(&mut available_bytes),
                     Some(&mut total_bytes),
                     Some(&mut free_bytes),
-                ).map_err(|e| crate::error::AppError::Ntfs(format!("GetDiskFreeSpaceExW failed: {}", e)))?;
+                )
+                    .map_err(|e| AppError::Ntfs(format!("GetDiskFreeSpaceExW: {}", e)))?;
             }
-            
+
             Ok(DiskInfo {
-                path: path.clone(),
+                path,
                 total_space: total_bytes,
                 available_space: available_bytes,
                 used_space: total_bytes.saturating_sub(free_bytes),
@@ -161,9 +205,10 @@ pub async fn get_disk_info(path: String) -> AppResult<DiskInfo> {
         }
         #[cfg(not(target_os = "windows"))]
         {
-            Err(crate::error::AppError::Ntfs("Not implemented for non-windows".to_string()))
+            Err(AppError::Ntfs("Not implemented on non-Windows".to_string()))
         }
-    }).await?
+    })
+        .await?
 }
 
 #[tauri::command]
@@ -172,47 +217,41 @@ pub async fn save_snapshot(
     drive: String,
     label: Option<String>,
 ) -> AppResult<SnapshotMeta> {
+    use flate2::read::GzDecoder;
+    use std::io::Read;
     task::spawn_blocking(move || {
-        use flate2::read::GzDecoder;
-        use std::io::Read;
-        let mut decoder = GzDecoder::new(&root_data[..]);
+        let mut dec = GzDecoder::new(&root_data[..]);
         let mut msgpack_data = Vec::new();
-        decoder.read_to_end(&mut msgpack_data)
-            .map_err(|e| crate::error::AppError::Compression(e.to_string()))?;
+        dec.read_to_end(&mut msgpack_data)
+            .map_err(|e| AppError::Compression(e.to_string()))?;
 
-        let root: crate::models::FileNode = rmp_serde::from_slice(&msgpack_data)
-            .map_err(|e| crate::error::AppError::Serialization(e.to_string()))?;
+        let root: crate::models::FileNode = rmp_serde::from_slice(&msgpack_data)?;
 
         crate::snapshot::save_snapshot(&root, &drive, label)
-            .map_err(crate::error::AppError::Snapshot)
-    }).await?
+    })
+        .await?
 }
 
 #[tauri::command]
 pub async fn list_snapshots(drive: Option<String>) -> AppResult<Vec<SnapshotMeta>> {
-    task::spawn_blocking(move || {
-        crate::snapshot::list_snapshots(drive.as_deref())
-            .map_err(crate::error::AppError::Snapshot)
-    })
-    .await?
+    task::spawn_blocking(move || crate::snapshot::list_snapshots(drive.as_deref())).await?
 }
 
 #[tauri::command]
 pub async fn delete_snapshot(id: String) -> AppResult<()> {
-    task::spawn_blocking(move || crate::snapshot::delete_snapshot(&id).map_err(crate::error::AppError::Snapshot))
-        .await?
+    task::spawn_blocking(move || crate::snapshot::delete_snapshot(&id)).await?
 }
 
 #[tauri::command]
 pub async fn diff_snapshots(id_a: String, id_b: String) -> AppResult<DiffResult> {
-    task::spawn_blocking(move || crate::snapshot::diff_snapshots(&id_a, &id_b).map_err(crate::error::AppError::Snapshot))
-        .await?
+    task::spawn_blocking(move || crate::snapshot::diff_snapshots(&id_a, &id_b)).await?
 }
 
 #[tauri::command]
-pub async fn get_snapshot_file_sizes(id: String) -> AppResult<std::collections::HashMap<String, u64>> {
-    task::spawn_blocking(move || crate::snapshot::get_snapshot_file_sizes(&id).map_err(crate::error::AppError::Snapshot))
-        .await?
+pub async fn get_snapshot_file_sizes(
+    id: String,
+) -> AppResult<std::collections::HashMap<String, u64>> {
+    task::spawn_blocking(move || crate::snapshot::get_snapshot_file_sizes(&id)).await?
 }
 
 #[tauri::command]
@@ -224,16 +263,22 @@ pub async fn get_latest_release(repo: String) -> AppResult<crate::GitHubLatestRe
             .build()
             .new_agent();
 
-        let response = agent.get(&atom_url)
+        let response = agent
+            .get(&atom_url)
             .header("User-Agent", "DiskClarity")
             .call()?;
 
         let text = response.into_body().read_to_string()?;
         let marker = "/releases/tag/";
-        let idx = text.find(marker).ok_or_else(|| crate::error::AppError::Network("Cannot parse releases feed".to_string()))?;
+        let idx = text
+            .find(marker)
+            .ok_or_else(|| AppError::Network("Cannot parse releases feed".to_string()))?;
         let start = idx + marker.len();
         let rest = &text[start..];
-        let end = rest.find('"').or_else(|| rest.find('<')).unwrap_or(rest.len());
+        let end = rest
+            .find('"')
+            .or_else(|| rest.find('<'))
+            .unwrap_or(rest.len());
         let tag = rest[..end].trim().to_string();
         let html_url = format!("https://github.com/{}/releases/tag/{}", repo.trim(), tag);
 
@@ -242,14 +287,21 @@ pub async fn get_latest_release(repo: String) -> AppResult<crate::GitHubLatestRe
             html_url: Some(html_url),
             body: None,
         })
-    }).await?
+    })
+        .await?
 }
 
 #[tauri::command]
-pub async fn get_releases(repo: String, limit: Option<u32>) -> AppResult<Vec<crate::models::GitHubRelease>> {
+pub async fn get_releases(
+    repo: String,
+    limit: Option<u32>,
+) -> AppResult<Vec<crate::models::GitHubRelease>> {
     let repo_trimmed = repo.trim().to_string();
     let per_page = limit.unwrap_or(20).clamp(1, 100);
-    let url = format!("https://api.github.com/repos/{}/releases?per_page={}", repo_trimmed, per_page);
+    let url = format!(
+        "https://api.github.com/repos/{}/releases?per_page={}",
+        repo_trimmed, per_page
+    );
     let token = github_token_from_env();
 
     task::spawn_blocking(move || {
@@ -272,6 +324,7 @@ pub async fn get_releases(repo: String, limit: Option<u32>) -> AppResult<Vec<cra
         let text = response.into_body().read_to_string()?;
 
         serde_json::from_str::<Vec<crate::models::GitHubRelease>>(&text)
-            .map_err(|e| crate::error::AppError::Network(format!("Parse releases failed: {}", e)))
-    }).await?
+            .map_err(|e| AppError::Network(format!("Parse releases failed: {}", e)))
+    })
+        .await?
 }

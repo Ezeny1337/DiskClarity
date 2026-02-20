@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
+import {cn} from '../../lib/utils';
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -9,10 +9,10 @@ interface MainLayoutProps {
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({
-    children,
-    header,
-    className
-}) => {
+                                                          children,
+                                                          header,
+                                                          className
+                                                      }) => {
     return (
         <div className="flex h-screen flex-col bg-background text-text overflow-hidden">
             {/* 标题栏区域 */}

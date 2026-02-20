@@ -1,43 +1,42 @@
-import { FileNode } from '../store/scanStore';
-import { useTabStore } from '../store/tabStore';
+import type {FileNode, TabData} from '../types';
+import {useTabStore} from '../store/tabStore';
 
 /**
  * 构建从根节点到目标路径的面包屑导航
  */
 export function buildBreadcrumbs(root: FileNode | null, targetPath: string): FileNode[] {
-  if (!root || !targetPath) return [];
-  if (root.path === targetPath) return [];
+    if (!root || !targetPath) return [];
+    if (root.path === targetPath) return [];
 
-  const stack: Array<{ node: FileNode; trail: FileNode[] }> = [{ node: root, trail: [] }];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) continue;
+    const stack: Array<{ node: FileNode; trail: FileNode[] }> = [{node: root, trail: []}];
+    while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current) continue;
 
-    if (current.node.path === targetPath) {
-      return current.trail;
+        if (current.node.path === targetPath) {
+            return current.trail;
+        }
+
+        if (current.node.children && current.node.children.length > 0) {
+            for (let i = current.node.children.length - 1; i >= 0; i--) {
+                const child = current.node.children[i];
+                stack.push({node: child, trail: [...current.trail, child]});
+            }
+        }
     }
 
-    if (current.node.children && current.node.children.length > 0) {
-      for (let i = current.node.children.length - 1; i >= 0; i--) {
-        const child = current.node.children[i];
-        stack.push({ node: child, trail: [...current.trail, child] });
-      }
-    }
-  }
-
-  return [];
+    return [];
 }
 
-/**
- * 更新当前活动标签页的数据
- */
-export function updateCurrentTabData(partialData: Record<string, any>) {
-  const latestState = useTabStore.getState();
-  const latestTab = latestState.tabs.find((tab) => tab.id === latestState.activeTabId) || null;
-  latestState.updateCurrentTab({
-    data: {
-      ...latestTab?.data,
-      ...partialData,
-    },
-  });
+export function updateCurrentTabData(partialData: Partial<TabData['data']>) {
+    const state = useTabStore.getState();
+    const tab = state.tabs.find((t) => t.id === state.activeTabId);
+    state.updateCurrentTab({data: {...tab?.data, ...partialData}});
+}
+
+export function updateTabData(tabId: string, partialData: Partial<TabData['data']>) {
+    const state = useTabStore.getState();
+    const tab = state.tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    state.updateTab(tabId, {data: {...tab.data, ...partialData}});
 }

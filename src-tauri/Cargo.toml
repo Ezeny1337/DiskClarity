@@ -1,6 +1,6 @@
 [package]
 name = "DiskClarity"
-version = "3.0.0"
+version = "3.1.0"
 description = "An efficient and lightweight disk space analysis tool"
 authors = ["Ezeny"]
 edition = "2021"
@@ -23,7 +23,16 @@ strip = true        # 移除调试符号
 opt-level = "s"     # 优化大小
 
 [profile.release.package."*"]
-opt-level = "s"     # 优化依赖包大小
+opt-level = "s"
+
+[profile.release.package.windows]
+opt-level = "z"
+
+[profile.release.package.serde]
+opt-level = "z"
+
+[profile.release.package.serde_derive]
+opt-level = "z"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -42,11 +51,13 @@ ureq = { version = "3.2.0", features = ["native-tls"] }
 thiserror = "2.0"
 
 [target.'cfg(windows)'.dependencies]
+windows-core = "0.61.2"
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",
     "Win32_System_IO",
     "Win32_System_Ioctl",
-    "Win32_Security",
+    "Win32_Security"
 ] }
 rayon = { version = "1.11", default-features = false }
+webview2-com = { version = "0.38", default-features = false }

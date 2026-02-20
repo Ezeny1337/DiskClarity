@@ -1,8 +1,29 @@
-use crate::models::{FileNameInfo, MftNode};
+use crate::models::{FileNameInfo, MftEntry};
+
+/// 从字节切片读取 u16
+#[inline(always)]
+fn read_u16(buf: &[u8], offset: usize) -> Option<u16> {
+    buf.get(offset..offset + 2)
+        .map(|b| u16::from_le_bytes([b[0], b[1]]))
+}
+
+/// 从字节切片读取 u32
+#[inline(always)]
+fn read_u32(buf: &[u8], offset: usize) -> Option<u32> {
+    buf.get(offset..offset + 4)
+        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+}
+
+/// 从字节切片读取 u64
+#[inline(always)]
+fn read_u64(buf: &[u8], offset: usize) -> Option<u64> {
+    buf.get(offset..offset + 8)
+        .map(|b| u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+}
 
 /// 解析单个 MFT 记录 - 应用 Fixup Array 修复并提取属性
 #[cfg(windows)]
-pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode> {
+pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry> {
     if record_bytes.len() < 42 {
         return None;
     }
@@ -12,68 +33,48 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
         return None;
     }
 
-    // 应用 Fixup Array 修复记录
-    // 偏移 0x04-0x05: USN 偏移
-    // 偏移 0x06-0x07: fixup 条目数
-    let usn_offset = u16::from_le_bytes([record_bytes[0x04], record_bytes[0x05]]) as usize;
-    let usn_size = u16::from_le_bytes([record_bytes[0x06], record_bytes[0x07]]) as usize;
-    
-    let mut fixup_buffer = None;
-    
-    // 第一个 fixup 值是标记需要修复的扇区的修复值
-    if usn_offset > 0 && usn_offset + usn_size * 2 <= record_bytes.len() && usn_size > 1 {
-        let fixup_value = u16::from_le_bytes([
-            record_bytes[usn_offset],
-            record_bytes[usn_offset + 1],
-        ]);
-        
-        // 将每个 512 字节扇区末尾的修复值替换为 fixup 数组中的对应值
-        let mut needs_fixup = false;
-        for i in 1..usn_size {
-            let sector_offset = i * 512 - 2; // 每个 512 字节扇区的最后 2 字节
-            if sector_offset + 2 <= record_bytes.len() {
-                let sector_end = u16::from_le_bytes([
-                    record_bytes[sector_offset],
-                    record_bytes[sector_offset + 1],
-                ]);
-                if sector_end == fixup_value {
-                    needs_fixup = true;
-                    break;
-                }
-            }
-        }
+    // 应用 Fixup Array：将每个 512B 扇区末尾的校验值替换为正确数据
+    // USN 偏移 0x04，条目数 0x06
+    let usn_offset = read_u16(record_bytes, 0x04)? as usize;
+    let usn_size = read_u16(record_bytes, 0x06)? as usize;
 
-        if needs_fixup {
-            let mut data = record_bytes.to_vec();
-            for i in 1..usn_size {
-                let sector_offset = i * 512 - 2;
-                let fixup_offset = usn_offset + i * 2;
-                let correct_value = u16::from_le_bytes([
-                    data[fixup_offset],
-                    data[fixup_offset + 1],
-                ]);
-                data[sector_offset] = correct_value as u8;
-                data[sector_offset + 1] = (correct_value >> 8) as u8;
+    let fixup_buffer: Option<Vec<u8>> =
+        if usn_offset > 0 && usn_size > 1 && usn_offset + usn_size * 2 <= record_bytes.len() {
+            let fixup_value = read_u16(record_bytes, usn_offset)?;
+            // 只在确实需要修复时才分配
+            let needs = (1..usn_size).any(|i| {
+                let so = i * 512 - 2;
+                so + 2 <= record_bytes.len() && read_u16(record_bytes, so) == Some(fixup_value)
+            });
+            if needs {
+                let mut data = record_bytes.to_vec();
+                for i in 1..usn_size {
+                    let sector_off = i * 512 - 2;
+                    let fixup_off = usn_offset + i * 2;
+                    if let Some(v) = read_u16(&data.clone(), fixup_off) {
+                        data[sector_off] = v as u8;
+                        data[sector_off + 1] = (v >> 8) as u8;
+                    }
+                }
+                Some(data)
+            } else {
+                None
             }
-            fixup_buffer = Some(data);
-        }
-    }
-    
-    // 使用修复后的记录数据进行解析
+        } else {
+            None
+        };
+
     let record_bytes = fixup_buffer.as_deref().unwrap_or(record_bytes);
 
-    // 检查记录是否在使用中（0x16 标志的第 0 位）
-    let flags = u16::from_le_bytes([record_bytes[0x16], record_bytes[0x17]]);
+    // 记录标志：bit0=在用，bit1=目录，bit4=索引视图
+    let flags = read_u16(record_bytes, 0x16)?;
     if (flags & 0x0001) == 0 {
         return None;
     }
-
-    // 从 MFT 记录标志检查是否为目录（第 1 位）
-    // 也检查第 4 位 (0x10)，在某些情况下也可能表示目录
     let is_dir_from_flags = (flags & 0x0002) != 0 || (flags & 0x0010) != 0;
 
     // 获取第一个属性的偏移（0x14）
-    let first_attr_offset = u16::from_le_bytes([record_bytes[0x14], record_bytes[0x15]]) as usize;
+    let first_attr_offset = read_u16(record_bytes, 0x14)? as usize;
     if first_attr_offset >= record_bytes.len() {
         return None;
     }
@@ -85,215 +86,117 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftNode>
     let mut modified_time = 0u64;
     let mut file_names: Vec<FileNameInfo> = Vec::new();
 
-    // 解析属性
     let mut offset = first_attr_offset;
-    let mut attr_count = 0;
-    
-    while offset + 4 < record_bytes.len() {
-        let attr_type = u32::from_le_bytes([
-            record_bytes[offset],
-            record_bytes[offset + 1],
-            record_bytes[offset + 2],
-            record_bytes[offset + 3],
-        ]);
+    let mut attr_count = 0usize;
 
-        if attr_type == 0xFFFFFFFF {
+    while offset + 8 <= record_bytes.len() {
+        let attr_type = read_u32(record_bytes, offset)?;
+        if attr_type == 0xFFFF_FFFF {
             break;
         }
 
-        let attr_len = u32::from_le_bytes([
-            record_bytes[offset + 4],
-            record_bytes[offset + 5],
-            record_bytes[offset + 6],
-            record_bytes[offset + 7],
-        ]) as usize;
-
+        let attr_len = read_u32(record_bytes, offset + 4)? as usize;
         if attr_len == 0 || offset + attr_len > record_bytes.len() {
             break;
         }
-        
+
         attr_count += 1;
+        let is_resident = record_bytes[offset + 8] == 0;
 
-        // 标准信息属性 (0x10)
-        if attr_type == 0x10 && offset + 80 < record_bytes.len() {
-            // 对于驻留属性，跳转到值
-            let is_resident = record_bytes[offset + 8] == 0;
-            if is_resident && offset + 24 < record_bytes.len() {
-                // 对于驻留属性，值偏移在 0x14-0x15（相对于属性开始）
-                let value_offset = u16::from_le_bytes([
-                    record_bytes[offset + 0x14],
-                    record_bytes[offset + 0x15],
-                ]) as usize;
-                
-                if offset + value_offset + 48 < record_bytes.len() {
-                    let attr_offset = offset + value_offset;
-                    // 修改时间在偏移 24 处（8 字节，Windows FILETIME 格式）
-                    let filetime = u64::from_le_bytes([
-                        record_bytes[attr_offset + 24],
-                        record_bytes[attr_offset + 25],
-                        record_bytes[attr_offset + 26],
-                        record_bytes[attr_offset + 27],
-                        record_bytes[attr_offset + 28],
-                        record_bytes[attr_offset + 29],
-                        record_bytes[attr_offset + 30],
-                        record_bytes[attr_offset + 31],
-                    ]);
-                    if filetime > 0 {
-                        // 转换 Windows FILETIME 为 Unix 时间戳
-                        modified_time = (filetime / 10_000_000).saturating_sub(11644473600);
+        match attr_type {
+            // $STANDARD_INFORMATION (0x10) — 修改时间
+            0x10 if is_resident => {
+                let val_off = read_u16(record_bytes, offset + 0x14)? as usize;
+                let base = offset + val_off;
+                if let Some(ft) = read_u64(record_bytes, base + 24) {
+                    if ft > 0 {
+                        // Windows FILETIME → Unix 秒
+                        modified_time = (ft / 10_000_000).saturating_sub(11_644_473_600);
                     }
                 }
             }
-        }
+            // $FILE_NAME (0x30) — 父目录引用、名称、目录标志
+            0x30 if is_resident => {
+                let val_off = read_u16(record_bytes, offset + 0x14)? as usize;
+                let base = offset + val_off;
+                if base + 8 > record_bytes.len() {
+                    offset += attr_len;
+                    continue;
+                }
 
-        // 文件名属性 (0x30)
-        if attr_type == 0x30 {
-            let is_resident = record_bytes[offset + 8] == 0;
-            if is_resident && offset + 24 < record_bytes.len() {
-                // 对于驻留属性，值偏移在 0x14-0x15（相对于属性开始）
-                let value_offset = u16::from_le_bytes([
-                    record_bytes[offset + 0x14],
-                    record_bytes[offset + 0x15],
-                ]) as usize;
-                
-                // 检查是否可以读取文件名属性的至少头部
-                if offset + value_offset + 8 < record_bytes.len() {
-                    let attr_offset = offset + value_offset;
-                    
-                    // 父目录引用（前 48 位有效）
-                    let current_parent_ref = u64::from_le_bytes([
-                        record_bytes[attr_offset],
-                        record_bytes[attr_offset + 1],
-                        record_bytes[attr_offset + 2],
-                        record_bytes[attr_offset + 3],
-                        record_bytes[attr_offset + 4],
-                        record_bytes[attr_offset + 5],
-                        record_bytes[attr_offset + 6],
-                        record_bytes[attr_offset + 7],
-                    ]) & 0x0000_FFFF_FFFF_FFFF;
+                let current_parent_ref = read_u64(record_bytes, base)? & 0x0000_FFFF_FFFF_FFFF;
 
-                    // 文件属性在偏移 56 处（4 字节，小端序）
-                    // 第 4 位 (0x10) = FILE_ATTRIBUTE_DIRECTORY
-                    let current_is_dir = if attr_offset + 60 < record_bytes.len() {
-                        let file_attrs = u32::from_le_bytes([
-                            record_bytes[attr_offset + 56],
-                            record_bytes[attr_offset + 57],
-                            record_bytes[attr_offset + 58],
-                            record_bytes[attr_offset + 59],
-                        ]);
-                        
-                        is_dir_from_flags || (file_attrs & 0x10) != 0
-                    } else {
-                        is_dir_from_flags
-                    };
+                let current_is_dir = read_u32(record_bytes, base + 56)
+                    .map(|fa| is_dir_from_flags || (fa & 0x10) != 0)
+                    .unwrap_or(is_dir_from_flags);
 
-                    // 名称长度在偏移 64 处，名称从偏移 66 开始
-                    if attr_offset + 65 < record_bytes.len() {
-                        let name_len = record_bytes[attr_offset + 64] as usize;
-                        let name_offset = attr_offset + 66;
-                        
-                        if name_len > 0 && name_len <= 255 && name_offset + name_len * 2 <= record_bytes.len() {
-                            // UTF-16 LE 解码
-                            let name_bytes = &record_bytes[name_offset..name_offset + name_len * 2];
-                            let current_name = String::from_utf16_lossy(
-                                &name_bytes
-                                    .chunks(2)
-                                    .map(|c| u16::from_le_bytes([c[0], c[1]]))
-                                    .collect::<Vec<_>>()
-                            );
-                            
-                            // 判断是否为 Win32 长文件名
-                            let is_win32 = name_len > 8 && !current_name.contains('~');
-                            
-                            file_names.push(FileNameInfo {
-                                name: current_name,
-                                parent_ref: current_parent_ref,
-                                is_win32,
-                                is_dir: current_is_dir,
-                            });
-                        }
+                if base + 66 <= record_bytes.len() {
+                    let name_len = record_bytes[base + 64] as usize;
+                    let name_start = base + 66;
+                    if name_len > 0
+                        && name_len <= 255
+                        && name_start + name_len * 2 <= record_bytes.len()
+                    {
+                        let units: Vec<u16> = record_bytes[name_start..name_start + name_len * 2]
+                            .chunks_exact(2)
+                            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                            .collect();
+                        let current_name = String::from_utf16_lossy(&units).to_string();
+                        // Win32 长文件名：长度 > 8 且不含短名称波浪号
+                        let is_win32 = name_len > 8 && !current_name.contains('~');
+                        file_names.push(FileNameInfo {
+                            name: current_name,
+                            parent_ref: current_parent_ref,
+                            is_win32,
+                            is_dir: current_is_dir,
+                        });
                     }
                 }
             }
-        }
-
-        // 数据属性 (0x80) - 获取文件大小
-        if attr_type == 0x80 {
-            let non_resident = record_bytes[offset + 8];
-            
-            if non_resident == 0 {
-                // 驻留数据 - 大小在偏移 16-19（4 字节）
-                if offset + 20 < record_bytes.len() {
-                    let data_size = u32::from_le_bytes([
-                        record_bytes[offset + 16],
-                        record_bytes[offset + 17],
-                        record_bytes[offset + 18],
-                        record_bytes[offset + 19],
-                    ]);
-                    size = data_size as u64;
-                }
-            } else {
-                // 非驻留数据 - 从偏移 56-63 获取 ValidDataLength
-                if offset + 64 < record_bytes.len() {
-                    size = u64::from_le_bytes([
-                        record_bytes[offset + 56],
-                        record_bytes[offset + 57],
-                        record_bytes[offset + 58],
-                        record_bytes[offset + 59],
-                        record_bytes[offset + 60],
-                        record_bytes[offset + 61],
-                        record_bytes[offset + 62],
-                        record_bytes[offset + 63],
-                    ]);
-                } else if offset + 56 < record_bytes.len() {
-                    // 如果无法读取偏移 56-63，尝试读取分配大小
-                    size = u64::from_le_bytes([
-                        record_bytes[offset + 48],
-                        record_bytes[offset + 49],
-                        record_bytes[offset + 50],
-                        record_bytes[offset + 51],
-                        record_bytes[offset + 52],
-                        record_bytes[offset + 53],
-                        record_bytes[offset + 54],
-                        record_bytes[offset + 55],
-                    ]);
+            // $DATA (0x80) — 文件大小
+            0x80 => {
+                if is_resident {
+                    // 驻留：值长度在偏移 0x10（u32）
+                    if let Some(sz) = read_u32(record_bytes, offset + 0x10) {
+                        size = sz as u64;
+                    }
+                } else {
+                    // 非驻留：ValidDataLength 在偏移 0x38，AllocatedSize 在 0x30
+                    size = read_u64(record_bytes, offset + 0x38)
+                        .or_else(|| read_u64(record_bytes, offset + 0x30))
+                        .unwrap_or(0);
                 }
             }
+            _ => {}
         }
 
         offset += attr_len;
     }
 
     // 优先选择 Win32 长文件名
-    if !file_names.is_empty() {
-        let win32_names: Vec<_> = file_names.iter().filter(|n| n.is_win32).collect();
-        let chosen_name = if !win32_names.is_empty() {
-            win32_names[0]
-        } else {
-            &file_names[0]
-        };
-        
-        name = chosen_name.name.clone();
-        parent_ref = chosen_name.parent_ref;
-        is_dir = chosen_name.is_dir;
+    if let Some(chosen) = file_names
+        .iter()
+        .find(|n| n.is_win32)
+        .or_else(|| file_names.first())
+    {
+        name = chosen.name.clone();
+        parent_ref = chosen.parent_ref;
+        is_dir = chosen.is_dir;
     }
-    
-    // 如果没有解析任何属性或名称为空，跳过该记录
+
     if attr_count == 0 || name.is_empty() {
         return None;
     }
 
-    // 标记是否需要从文件系统获取大小
     let needs_size_fallback = !is_dir && size == 0;
-    
-    Some(MftNode {
+
+    Some(MftEntry {
         file_ref: record_idx & 0x0000_FFFF_FFFF_FFFF,
         parent_ref,
         name,
         size,
         is_dir,
         modified_time,
-        link_count: 1,
         needs_size_fallback,
     })
 }

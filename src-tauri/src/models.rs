@@ -37,6 +37,17 @@ fn is_zero(n: &u64) -> bool {
     *n == 0
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanStage {
+    #[default]
+    Scanning,
+    FetchingSizes,
+    BuildingTree,
+    Serializing,
+    Complete,
+}
+
 // 扫描进度信息，实时推送给前端
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanProgress {
@@ -47,10 +58,10 @@ pub struct ScanProgress {
     pub is_complete: bool,
     pub duration_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stage: Option<String>, // 扫描阶段：scanning | fetching_sizes | building_tree | serializing | complete
+    pub stage: Option<ScanStage>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ScanConfig {
     /// 最大并行线程数
     pub max_threads: Option<usize>,
@@ -64,29 +75,16 @@ pub struct DiskInfo {
     pub used_space: u64,
 }
 
-// MFT 解析后的节点信息
+// MFT 解析后的文件条目
 #[derive(Clone, Debug)]
-pub struct MftNode {
+pub struct MftEntry {
     pub file_ref: u64,
     pub parent_ref: u64,
     pub name: String,
     pub size: u64,
     pub is_dir: bool,
     pub modified_time: u64,
-    pub link_count: u16,
-    pub needs_size_fallback: bool, // 是否需要从文件系统获取大小
-}
-
-// MFT 文件条目
-#[derive(Clone)]
-pub struct MftFileEntry {
-    pub file_ref: u64,
-    pub parent_ref: u64,
-    pub name: String,
-    pub size: u64,
-    pub is_dir: bool,
-    pub modified_time: u64,
-    pub needs_size_fallback: bool, // 是否需要从文件系统获取大小
+    pub needs_size_fallback: bool,
 }
 
 // Data Run 结构
@@ -112,5 +110,4 @@ pub struct NtfsVolumeInfo {
     pub bytes_per_cluster: u64,
     pub bytes_per_mft_record: u64,
     pub mft_start_lcn: u64,
-    pub mft_valid_data_length: u64,
 }

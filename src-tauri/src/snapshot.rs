@@ -1,29 +1,28 @@
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::error::{AppError, AppResult};
 use crate::models::FileNode;
 
-// .dcshot 文件的魔数标识
-const DCSHOT_MAGIC: &[u8; 8] = b"DCSHOT01";
+// 格式：magic(8) + meta_len(4, LE) + msgpack(meta) + gzip(msgpack(root))
+const DCSHOT_MAGIC: &[u8; 8] = b"DCSHOT02";
 
 // 快照元数据（存储在列表中，不包含完整树）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotMeta {
     pub id: String,
     pub drive: String,
-    pub created_at: u64,   // Unix 时间戳（秒）
+    pub created_at: u64, // Unix 时间戳（秒）
     pub file_count: u64,
     pub dir_count: u64,
     pub total_size: u64,
     pub label: Option<String>,
-}
-
-// .dcshot 文件完整结构
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SnapshotFile {
-    pub meta: SnapshotMeta,
-    pub root: FileNode,
 }
 
 // Diff 结果中单个条目的变化类型
@@ -64,31 +63,30 @@ pub struct DiffResult {
     pub changed_count: u64,
 }
 
-/// 获取快照存储目录（%APPDATA%\DiskClarity\snapshots）
-pub fn get_snapshot_dir() -> Result<PathBuf, String> {
+fn get_snapshot_dir() -> AppResult<PathBuf> {
     let appdata = std::env::var("APPDATA")
         .or_else(|_| std::env::var("HOME"))
-        .map_err(|_| "Cannot find APPDATA/HOME directory".to_string())?;
+        .map_err(|_| AppError::Io("APPDATA/HOME environment variable not set".to_string()))?;
 
-    let dir = PathBuf::from(appdata)
-        .join("DiskClarity")
-        .join("snapshots");
+    let dir = PathBuf::from(appdata).join("DiskClarity").join("snapshots");
 
     if !dir.exists() {
-        std::fs::create_dir_all(&dir)
-            .map_err(|e| format!("Cannot create snapshot directory: {}", e))?;
+        std::fs::create_dir_all(&dir)?;
     }
 
     Ok(dir)
 }
 
-/// 保存快照到 .dcshot 文件
-pub fn save_snapshot(root: &FileNode, drive: &str, label: Option<String>) -> Result<SnapshotMeta, String> {
+pub fn save_snapshot(
+    root: &FileNode,
+    drive: &str,
+    label: Option<String>,
+) -> AppResult<SnapshotMeta> {
     let dir = get_snapshot_dir()?;
 
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AppError::Io(e.to_string()))?
         .as_secs();
 
     let id = format!("{}-{}", drive.trim_end_matches('\\').replace(':', ""), now);
@@ -103,46 +101,38 @@ pub fn save_snapshot(root: &FileNode, drive: &str, label: Option<String>) -> Res
         label,
     };
 
-    let snapshot = SnapshotFile {
-        meta: meta.clone(),
-        root: root.clone(),
-    };
+    // 序列化元数据（不压缩，用于快速读取）
+    let meta_bytes = rmp_serde::to_vec_named(&meta)?;
+    let meta_len = meta_bytes.len() as u32;
 
-    // 序列化为 MessagePack
-    let msgpack_data = rmp_serde::to_vec_named(&snapshot)
-        .map_err(|e| format!("Serialization failed: {}", e))?;
+    let root_bytes = rmp_serde::to_vec_named(root)?;
+    let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
+    enc.write_all(&root_bytes)
+        .map_err(|e| AppError::Compression(e.to_string()))?;
+    let compressed_root = enc
+        .finish()
+        .map_err(|e| AppError::Compression(e.to_string()))?;
 
-    // gzip 压缩
-    use flate2::write::GzEncoder;
-    use flate2::Compression;
-    use std::io::Write;
-
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&msgpack_data)
-        .map_err(|e| format!("Compression failed: {}", e))?;
-    let compressed = encoder.finish()
-        .map_err(|e| format!("Compression finish failed: {}", e))?;
-
-    // 写入文件：魔数 + 数据
-    let file_path = dir.join(format!("{}.dcshot", id));
-    let mut file_data = Vec::with_capacity(DCSHOT_MAGIC.len() + compressed.len());
+    let file_path = dir.join(format!("{id}.dcshot"));
+    let total = DCSHOT_MAGIC.len() + 4 + meta_bytes.len() + compressed_root.len();
+    let mut file_data = Vec::with_capacity(total);
     file_data.extend_from_slice(DCSHOT_MAGIC);
-    file_data.extend_from_slice(&compressed);
+    file_data.extend_from_slice(&meta_len.to_le_bytes());
+    file_data.extend_from_slice(&meta_bytes);
+    file_data.extend_from_slice(&compressed_root);
 
-    std::fs::write(&file_path, &file_data)
-        .map_err(|e| format!("Failed to write snapshot file: {}", e))?;
+    std::fs::write(&file_path, &file_data)?;
 
     Ok(meta)
 }
 
 /// 列举快照的元数据
-pub fn list_snapshots(drive_filter: Option<&str>) -> Result<Vec<SnapshotMeta>, String> {
+pub fn list_snapshots(drive_filter: Option<&str>) -> AppResult<Vec<SnapshotMeta>> {
     let dir = get_snapshot_dir()?;
 
     let mut metas: Vec<SnapshotMeta> = Vec::new();
 
-    let entries = std::fs::read_dir(&dir)
-        .map_err(|e| format!("Cannot read snapshot directory: {}", e))?;
+    let entries = std::fs::read_dir(&dir)?;
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -159,7 +149,7 @@ pub fn list_snapshots(drive_filter: Option<&str>) -> Result<Vec<SnapshotMeta>, S
                 } else {
                     metas.push(meta);
                 }
-            },
+            }
             Err(_) => continue, // 跳过损坏的文件
         }
     }
@@ -171,108 +161,123 @@ pub fn list_snapshots(drive_filter: Option<&str>) -> Result<Vec<SnapshotMeta>, S
 }
 
 /// 仅加载快照元数据
-fn load_snapshot_meta(path: &PathBuf) -> Result<SnapshotMeta, String> {
-    let snapshot = load_snapshot_file(path)?;
-    Ok(snapshot.meta)
+fn load_snapshot_meta(path: &PathBuf) -> AppResult<SnapshotMeta> {
+    let file_data = std::fs::read(path)?;
+
+    if file_data.len() < 12 || &file_data[..8] != DCSHOT_MAGIC {
+        return Err(AppError::Snapshot(
+            "Invalid snapshot file format".to_string(),
+        ));
+    }
+
+    let meta_len = u32::from_le_bytes(
+        file_data[8..12]
+            .try_into()
+            .map_err(|_| AppError::Snapshot("Invalid snapshot header".to_string()))?,
+    ) as usize;
+    if file_data.len() < 12 + meta_len {
+        return Err(AppError::Snapshot("Truncated snapshot file".to_string()));
+    }
+
+    Ok(rmp_serde::from_slice(&file_data[12..12 + meta_len])?)
 }
 
 /// 加载完整快照文件
-pub fn load_snapshot_by_id(id: &str) -> Result<SnapshotFile, String> {
+pub fn load_snapshot_by_id(id: &str) -> AppResult<(SnapshotMeta, FileNode)> {
     let dir = get_snapshot_dir()?;
-    let file_path = dir.join(format!("{}.dcshot", id));
-    load_snapshot_file(&file_path)
-}
+    let file_path = dir.join(format!("{id}.dcshot"));
+    let file_data = std::fs::read(&file_path)?;
 
-fn load_snapshot_file(path: &PathBuf) -> Result<SnapshotFile, String> {
-    let file_data = std::fs::read(path)
-        .map_err(|e| format!("Cannot read snapshot file: {}", e))?;
-
-    // 验证魔数
-    if file_data.len() < DCSHOT_MAGIC.len() || &file_data[..DCSHOT_MAGIC.len()] != DCSHOT_MAGIC {
-        return Err("Invalid snapshot file format".to_string());
+    if file_data.len() < 12 || &file_data[..8] != DCSHOT_MAGIC {
+        return Err(AppError::Snapshot(
+            "Invalid snapshot file format".to_string(),
+        ));
     }
 
-    let compressed = &file_data[DCSHOT_MAGIC.len()..];
+    let meta_len = u32::from_le_bytes(
+        file_data[8..12]
+            .try_into()
+            .map_err(|_| AppError::Snapshot("Invalid snapshot header".to_string()))?,
+    ) as usize;
+    if file_data.len() < 12 + meta_len {
+        return Err(AppError::Snapshot("Truncated snapshot file".to_string()));
+    }
 
-    // gzip 解压
-    use flate2::read::GzDecoder;
-    use std::io::Read;
+    let meta: SnapshotMeta = rmp_serde::from_slice(&file_data[12..12 + meta_len])?;
 
-    let mut decoder = GzDecoder::new(compressed);
-    let mut msgpack_data = Vec::new();
-    decoder.read_to_end(&mut msgpack_data)
-        .map_err(|e| format!("Decompression failed: {}", e))?;
+    let compressed_root = &file_data[12 + meta_len..];
+    let mut dec = GzDecoder::new(compressed_root);
+    let mut root_bytes = Vec::new();
+    dec.read_to_end(&mut root_bytes)
+        .map_err(|e| AppError::Compression(e.to_string()))?;
 
-    // 反序列化
-    let snapshot: SnapshotFile = rmp_serde::from_slice(&msgpack_data)
-        .map_err(|e| format!("Deserialization failed: {}", e))?;
+    let root: FileNode = rmp_serde::from_slice(&root_bytes)?;
 
-    Ok(snapshot)
+    Ok((meta, root))
 }
 
-/// 删除快照
-pub fn delete_snapshot(id: &str) -> Result<(), String> {
+pub fn delete_snapshot(id: &str) -> AppResult<()> {
     let dir = get_snapshot_dir()?;
-    let file_path = dir.join(format!("{}.dcshot", id));
-
+    let file_path = dir.join(format!("{id}.dcshot"));
     if file_path.exists() {
-        std::fs::remove_file(&file_path)
-            .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
+        std::fs::remove_file(&file_path)?;
     }
-
     Ok(())
 }
 
-/// 将 FileNode 树展平为路径->节点的 HashMap
-fn flatten_tree<'a>(node: &'a FileNode, parent_path: &str, map: &mut HashMap<String, &'a FileNode>) {
-    let current_path = if parent_path.is_empty() {
-        node.name.clone()
-    } else {
-        format!("{}\\{}", parent_path, node.name)
-    };
-    
-    map.insert(current_path.clone(), node);
-    for child in &node.children {
-        flatten_tree(child, &current_path, map);
+/// 迭代展平 FileNode 树为 path -> node 映射，避免深层递归栈溢出
+fn flatten_tree<'a>(root: &'a FileNode) -> HashMap<String, &'a FileNode> {
+    // 预估节点总数（file_count + dir_count + 1），减少 HashMap 扩容
+    let capacity = (root.file_count + root.dir_count + 1) as usize;
+    let mut map = HashMap::with_capacity(capacity);
+    let mut stack: Vec<(&'a FileNode, String)> = Vec::with_capacity(64);
+    stack.push((root, String::new()));
+    while let Some((node, parent)) = stack.pop() {
+        let path = if parent.is_empty() {
+            node.name.clone()
+        } else {
+            format!("{}\\{}", parent, node.name)
+        };
+        map.insert(path.clone(), node);
+        for child in &node.children {
+            stack.push((child, path.clone()));
+        }
     }
+    map
 }
 
-/// 获取快照中所有节点的路径->大小映射，用于前端历史趋势分析
-pub fn get_snapshot_file_sizes(id: &str) -> Result<HashMap<String, u64>, String> {
-    let snapshot = load_snapshot_by_id(id)?;
-    let mut size_map: HashMap<String, u64> = HashMap::new();
-    collect_sizes(&snapshot.root, "", &mut size_map);
-    Ok(size_map)
+/// 迭代收集所有节点的 path -> size 映射
+pub fn get_snapshot_file_sizes(id: &str) -> AppResult<HashMap<String, u64>> {
+    let (_meta, root) = load_snapshot_by_id(id)?;
+    let map = flatten_tree(&root)
+        .into_iter()
+        .map(|(k, v)| (k, v.size))
+        .collect();
+    Ok(map)
 }
 
-/// 递归收集文件树中所有节点的路径->大小
-fn collect_sizes(node: &FileNode, parent_path: &str, map: &mut HashMap<String, u64>) {
-    let current_path = if parent_path.is_empty() {
-        node.name.clone()
-    } else {
-        format!("{}\\{}", parent_path, node.name)
-    };
-    map.insert(current_path.clone(), node.size);
-    for child in &node.children {
-        collect_sizes(child, &current_path, map);
-    }
+/// 对比两个快照，返回差异结果（并行加载两个快照文件）
+pub fn diff_snapshots(id_a: &str, id_b: &str) -> AppResult<DiffResult> {
+    use std::thread;
+    let id_a_owned = id_a.to_string();
+
+    let handle_a = thread::spawn(move || load_snapshot_by_id(&id_a_owned));
+    let (_meta_b, root_b) = load_snapshot_by_id(id_b)?;
+    let (_meta_a, root_a) = handle_a
+        .join()
+        .map_err(|_| AppError::TaskFailed("Thread panicked loading snapshot A".to_string()))??;
+
+    diff_trees(&root_a, &root_b, id_a, id_b)
 }
 
-/// 对比两个快照，返回差异结果
-pub fn diff_snapshots(id_a: &str, id_b: &str) -> Result<DiffResult, String> {
-    let snap_a = load_snapshot_by_id(id_a)?;
-    let snap_b = load_snapshot_by_id(id_b)?;
-
-    diff_trees(&snap_a.root, &snap_b.root, id_a, id_b)
-}
-
-/// 对比两棵文件树
-pub fn diff_trees(root_a: &FileNode, root_b: &FileNode, id_a: &str, id_b: &str) -> Result<DiffResult, String> {
-    let mut map_a: HashMap<String, &FileNode> = HashMap::new();
-    let mut map_b: HashMap<String, &FileNode> = HashMap::new();
-
-    flatten_tree(root_a, "", &mut map_a);
-    flatten_tree(root_b, "", &mut map_b);
+pub fn diff_trees(
+    root_a: &FileNode,
+    root_b: &FileNode,
+    id_a: &str,
+    id_b: &str,
+) -> AppResult<DiffResult> {
+    let map_a = flatten_tree(root_a);
+    let map_b = flatten_tree(root_b);
 
     let mut entries: Vec<DiffEntry> = Vec::new();
     let mut total_added_size: u64 = 0;
@@ -289,7 +294,11 @@ pub fn diff_trees(root_a: &FileNode, root_b: &FileNode, id_a: &str, id_b: &str) 
             // 两边都有 - 检查大小变化
             if node_b.size != node_a.size {
                 let delta = node_b.size as i64 - node_a.size as i64;
-                let kind = if delta > 0 { DiffKind::Grown } else { DiffKind::Shrunk };
+                let kind = if delta > 0 {
+                    DiffKind::Grown
+                } else {
+                    DiffKind::Shrunk
+                };
 
                 if delta > 0 {
                     total_grown_delta += delta;
@@ -347,7 +356,11 @@ pub fn diff_trees(root_a: &FileNode, root_b: &FileNode, id_a: &str, id_b: &str) 
     }
 
     // 按 size_delta 绝对值降序排列
-    entries.sort_by(|a, b| b.size_delta.unsigned_abs().cmp(&a.size_delta.unsigned_abs()));
+    entries.sort_by(|a, b| {
+        b.size_delta
+            .unsigned_abs()
+            .cmp(&a.size_delta.unsigned_abs())
+    });
 
     Ok(DiffResult {
         snapshot_a_id: id_a.to_string(),

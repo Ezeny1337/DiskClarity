@@ -1,103 +1,24 @@
-import { create } from 'zustand';
+import {create} from 'zustand';
+import type {ScanConfig} from '../types';
+import {DEFAULT_SCAN_CONFIG} from '../constants';
 
-export interface FileNode {
-  name: string;
-  path: string;
-  size: number;
-  is_dir: boolean;
-  children: FileNode[];
-  file_count: number;
-  dir_count: number;
-  modified_time: number;
-}
-
-export interface ScanProgress {
-  scanned_files: number;
-  scanned_dirs: number;
-  total_size: number;
-  current_path: string;
-  is_complete: boolean;
-  duration_ms: number;
-  stage?: string; // scanning | fetching_sizes | building_tree | serializing | complete
-}
-
-export interface ScanConfig {
-  max_threads?: number;
-}
-
-export type SortField = 'name' | 'size' | 'modified' | 'fileCount';
-export type SortOrder = 'asc' | 'desc';
-export type GroupBy = 'none' | 'type' | 'extension';
+export type {ScanConfig};
 
 interface ScanState {
-  scanResult: FileNode | null;
-  scanProgress: ScanProgress | null;
-  isScanning: boolean;
-  error: string | null;
+    error: string | null;
+    scanConfig: ScanConfig;
 
-  selectedPath: string;
-  currentNode: FileNode | null;
-  breadcrumbs: FileNode[];
-  sortField: SortField;
-  sortOrder: SortOrder;
-  groupBy: GroupBy;
-  flatGrouping: boolean;
-
-  scanConfig: ScanConfig;
-
-  setScanResult: (result: FileNode | null) => void;
-  setScanProgress: (progress: ScanProgress | null) => void;
-  setIsScanning: (isScanning: boolean) => void;
-  setError: (error: string | null) => void;
-  setSelectedPath: (path: string) => void;
-  setCurrentNode: (node: FileNode | null) => void;
-  setBreadcrumbs: (breadcrumbs: FileNode[]) => void;
-  setScanConfig: (config: Partial<ScanConfig>) => void;
-  setSortField: (field: SortField) => void;
-  setSortOrder: (order: SortOrder) => void;
-  setGroupBy: (groupBy: GroupBy) => void;
-  setFlatGrouping: (flatGrouping: boolean) => void;
-  reset: () => void;
+    setError: (error: string | null) => void;
+    setScanConfig: (config: Partial<ScanConfig>) => void;
 }
 
-const defaultConfig: ScanConfig = {
-  max_threads: undefined,
-};
 
 export const useScanStore = create<ScanState>((set) => ({
-  scanResult: null,
-  scanProgress: null,
-  isScanning: false,
-  error: null,
-  selectedPath: '',
-  currentNode: null,
-  breadcrumbs: [],
-  sortField: 'size',
-  sortOrder: 'desc',
-  groupBy: 'none',
-  flatGrouping: false,
-  scanConfig: defaultConfig,
-
-  setScanResult: (result) => set({ scanResult: result, currentNode: result }),
-  setScanProgress: (progress) => set({ scanProgress: progress }),
-  setIsScanning: (isScanning) => set({ isScanning }),
-  setError: (error) => set({ error }),
-  setSelectedPath: (path) => set({ selectedPath: path }),
-  setCurrentNode: (node) => set({ currentNode: node }),
-  setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs }),
-  setScanConfig: (config) => set((state) => ({
-    scanConfig: { ...state.scanConfig, ...config }
-  })),
-  setSortField: (field) => set({ sortField: field }),
-  setSortOrder: (order) => set({ sortOrder: order }),
-  setGroupBy: (groupBy) => set({ groupBy }),
-  setFlatGrouping: (flatGrouping) => set({ flatGrouping }),
-  reset: () => set({
-    scanResult: null,
-    scanProgress: null,
-    isScanning: false,
     error: null,
-    currentNode: null,
-    breadcrumbs: [],
-  }),
+    scanConfig: DEFAULT_SCAN_CONFIG,
+
+    setError: (error) => set({error}),
+    setScanConfig: (config) => set((state) => ({
+        scanConfig: {...state.scanConfig, ...config}
+    })),
 }));

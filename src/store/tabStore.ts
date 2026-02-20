@@ -1,125 +1,84 @@
-import { create } from 'zustand';
-import { FileNode, ScanProgress, SortField, SortOrder, GroupBy } from './scanStore';
+import {create} from 'zustand';
+import type {TabData, TabType} from '../types';
+import {DEFAULT_HOME_TAB} from '../constants';
 
-export type TabType = 'home' | 'disk-scan' | 'snapshot-analysis' | 'snapshot-diff';
-
-export interface TabData {
-  id: string;
-  type: TabType;
-  title: string;
-  data?: {
-    // Disk Scan 相关数据
-    drive?: string;
-    scanResult?: FileNode;
-    scanProgress?: ScanProgress;
-    isScanning?: boolean;
-    scanStage?: 'select' | 'scanning' | 'complete';
-    error?: string | null;
-
-    // 文件浏览相关状态
-    selectedPath?: string;
-    currentNode?: FileNode | null;
-    breadcrumbs?: FileNode[];
-    sortField?: SortField;
-    sortOrder?: SortOrder;
-    groupBy?: GroupBy;
-    flatGrouping?: boolean;
-
-    // Disk Scan 搜索筛选
-    diskSearchQuery?: string;
-    diskSearchMode?: 'contains' | 'regex' | 'exclude';
-    diskSearchCaseSensitive?: boolean;
-    diskSearchNodeType?: 'all' | 'file' | 'dir';
-    diskSearchMinSizeMb?: string;
-    diskSearchMaxSizeMb?: string;
-    diskSearchMinSizeUnit?: 'B' | 'KB' | 'MB' | 'GB';
-    diskSearchMaxSizeUnit?: 'B' | 'KB' | 'MB' | 'GB';
-    diskSearchExtensions?: string[];
-    diskSearchExtensionMode?: 'include' | 'exclude';
-
-    // Snapshot Diff 相关数据
-    snapshotAId?: string;
-    snapshotBId?: string;
-  };
-}
+export type {TabData, TabType};
 
 interface TabState {
-  tabs: TabData[];
-  activeTabId: string | null;
+    tabs: TabData[];
+    activeTabId: string | null;
 
-  addTab: (tab: TabData) => void;
-  removeTab: (tabId: string) => void;
-  setActiveTab: (tabId: string) => void;
-  updateTab: (tabId: string, updates: Partial<TabData>) => void;
-  updateCurrentTab: (updates: Partial<TabData>) => void;
-  getActiveTab: () => TabData | null;
-  setTabs: (tabs: TabData[]) => void;
+    addTab: (tab: TabData) => void;
+    removeTab: (tabId: string) => void;
+    setActiveTab: (tabId: string) => void;
+    updateTab: (tabId: string, updates: Partial<TabData>) => void;
+    updateCurrentTab: (updates: Partial<TabData>) => void;
+    getActiveTab: () => TabData | null;
+    setTabs: (tabs: TabData[]) => void;
 }
 
 export const useTabStore = create<TabState>((set, get) => ({
-  tabs: [
-    {
-      id: 'home-1',
-      type: 'home',
-      title: 'Home',
-    },
-  ],
-  activeTabId: 'home-1',
+    tabs: [
+        {
+            ...DEFAULT_HOME_TAB,
+            id: 'home-1',
+        },
+    ],
+    activeTabId: 'home-1',
 
-  addTab: (tab) => set((state) => ({
-    tabs: [...state.tabs, tab],
-    activeTabId: tab.id,
-  })),
+    addTab: (tab) => set((state) => ({
+        tabs: [...state.tabs, tab],
+        activeTabId: tab.id,
+    })),
 
-  removeTab: (tabId) => set((state) => {
-    const tabIndex = state.tabs.findIndex(t => t.id === tabId);
-    if (tabIndex === -1) return {};
+    removeTab: (tabId) => set((state) => {
+        const tabIndex = state.tabs.findIndex(t => t.id === tabId);
+        if (tabIndex === -1) return {};
 
-    let newTabs = state.tabs.filter(t => t.id !== tabId);
-    let newActiveTabId = state.activeTabId;
+        let newTabs = state.tabs.filter(t => t.id !== tabId);
+        let newActiveTabId = state.activeTabId;
 
-    // 如果正在关闭活动标签页，或者活动标签页刚被移除
-    if (state.activeTabId === tabId || !newTabs.some(t => t.id === state.activeTabId)) {
-      if (newTabs.length > 0) {
-        // 切换到邻近标签页，优先选择移动到当前索引的那个
-        const newIndex = Math.min(tabIndex, newTabs.length - 1);
-        newActiveTabId = newTabs[newIndex].id;
-      } else {
-        // 如果所有标签页都已关闭，创建一个新的主页标签页
-        const newHomeTab: TabData = {
-          id: `home-${Date.now()}`,
-          type: 'home',
-          title: 'Home',
+        // 如果正在关闭活动标签页，或者活动标签页刚被移除
+        if (state.activeTabId === tabId || !newTabs.some(t => t.id === state.activeTabId)) {
+            if (newTabs.length > 0) {
+                // 切换到邻近标签页，优先选择移动到当前索引的那个
+                const newIndex = Math.min(tabIndex, newTabs.length - 1);
+                newActiveTabId = newTabs[newIndex].id;
+            } else {
+                // 如果所有标签页都已关闭，创建一个新的主页标签页
+                const newHomeTab: TabData = {
+                    ...DEFAULT_HOME_TAB,
+                    id: `home-${Date.now()}`,
+                };
+                newTabs = [newHomeTab];
+                newActiveTabId = newHomeTab.id;
+            }
+        }
+
+        return {
+            tabs: newTabs,
+            activeTabId: newActiveTabId,
         };
-        newTabs = [newHomeTab];
-        newActiveTabId = newHomeTab.id;
-      }
-    }
+    }),
 
-    return {
-      tabs: newTabs,
-      activeTabId: newActiveTabId,
-    };
-  }),
+    setActiveTab: (tabId) => set({activeTabId: tabId}),
 
-  setActiveTab: (tabId) => set({ activeTabId: tabId }),
+    updateTab: (tabId, updates) => set((state) => ({
+        tabs: state.tabs.map(tab =>
+            tab.id === tabId ? {...tab, ...updates} : tab
+        ),
+    })),
 
-  updateTab: (tabId, updates) => set((state) => ({
-    tabs: state.tabs.map(tab =>
-      tab.id === tabId ? { ...tab, ...updates } : tab
-    ),
-  })),
+    updateCurrentTab: (updates) => set((state) => ({
+        tabs: state.tabs.map(tab =>
+            tab.id === state.activeTabId ? {...tab, ...updates} : tab
+        ),
+    })),
 
-  updateCurrentTab: (updates) => set((state) => ({
-    tabs: state.tabs.map(tab =>
-      tab.id === state.activeTabId ? { ...tab, ...updates } : tab
-    ),
-  })),
+    getActiveTab: () => {
+        const state = get();
+        return state.tabs.find(t => t.id === state.activeTabId) || null;
+    },
 
-  getActiveTab: () => {
-    const state = get();
-    return state.tabs.find(t => t.id === state.activeTabId) || null;
-  },
-
-  setTabs: (tabs) => set({ tabs }),
+    setTabs: (tabs) => set({tabs}),
 }));

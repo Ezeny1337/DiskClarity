@@ -1,18 +1,20 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { useTabStore, TabData } from '../../store/tabStore';
-import { motion, Reorder, AnimatePresence } from 'framer-motion';
-import { X, Plus, Home, HardDrive, Image as ImageIcon, GitCompare } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import {useTranslation} from 'react-i18next';
+import {useTabStore} from '../../store/tabStore';
+import type {TabData} from '../../types';
+import {DEFAULT_HOME_TAB} from '../../constants';
+import {AnimatePresence, motion, Reorder} from 'framer-motion';
+import {GitCompare, HardDrive, Home, Image as ImageIcon, Plus, X} from 'lucide-react';
+import {cn} from '../../lib/utils';
 
 export const AppTabBar: React.FC = () => {
-    const { t } = useTranslation();
-    const { tabs, activeTabId, addTab, removeTab, setActiveTab, setTabs } = useTabStore();
+    const {t} = useTranslation();
+    const {tabs, activeTabId, addTab, removeTab, setActiveTab, setTabs} = useTabStore();
 
     const handleNewTab = () => {
         const newTab: TabData = {
+            ...DEFAULT_HOME_TAB,
             id: `home-${Date.now()}`,
-            type: 'home',
             title: t('home.title'),
         };
         addTab(newTab);
@@ -26,15 +28,15 @@ export const AppTabBar: React.FC = () => {
     const getTabIcon = (type: string) => {
         switch (type) {
             case 'home':
-                return <Home size={14} />;
+                return <Home size={14}/>;
             case 'disk-scan':
-                return <HardDrive size={14} />;
+                return <HardDrive size={14}/>;
             case 'snapshot-analysis':
-                return <ImageIcon size={14} />;
+                return <ImageIcon size={14}/>;
             case 'snapshot-diff':
-                return <GitCompare size={14} />;
+                return <GitCompare size={14}/>;
             default:
-                return <Home size={14} />;
+                return <Home size={14}/>;
         }
     };
 
@@ -59,10 +61,10 @@ export const AppTabBar: React.FC = () => {
                                 layout
                                 onClick={() => setActiveTab(tab.id)}
                                 onMouseDown={(e) => e.stopPropagation()}
-                                initial={{ opacity: 0, scale: 0.9, width: 0 }}
-                                animate={{ opacity: 1, scale: 1, width: 'auto' }}
-                                exit={{ opacity: 0, scale: 0.8, width: 0 }}
-                                transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                                initial={{opacity: 0, scale: 0.9, width: 0}}
+                                animate={{opacity: 1, scale: 1, width: 'auto'}}
+                                exit={{opacity: 0, scale: 0.8, width: 0}}
+                                transition={{type: "spring", bounce: 0.2, duration: 0.5}}
                                 className={cn(
                                     "group relative flex items-center gap-2 px-3 py-1.5 rounded-md text-sm cursor-pointer transition-colors border border-transparent min-w-30 max-w-50 pointer-events-auto shrink-0",
                                     tab.id === activeTabId
@@ -75,7 +77,7 @@ export const AppTabBar: React.FC = () => {
                                         layoutId="activeTabGlow"
                                         className="absolute inset-0 bg-primary/10 rounded-md -z-10"
                                         initial={false}
-                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                        transition={{type: "spring", bounce: 0.2, duration: 0.6}}
                                     />
                                 )}
 
@@ -91,7 +93,7 @@ export const AppTabBar: React.FC = () => {
                                             tab.id === activeTabId ? "opacity-100" : ""
                                         )}
                                     >
-                                        <X size={12} />
+                                        <X size={12}/>
                                     </button>
                                 )}
                             </Reorder.Item>
@@ -106,7 +108,7 @@ export const AppTabBar: React.FC = () => {
                 className="ml-1 p-1.5 rounded-md text-text-muted hover:text-text hover:bg-white/5 transition-colors shrink-0 pointer-events-auto relative z-30"
                 title={t('tabs.newTab')}
             >
-                <Plus size={16} />
+                <Plus size={16}/>
             </button>
         </motion.div>
     );

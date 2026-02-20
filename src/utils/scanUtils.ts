@@ -1,7 +1,9 @@
+import type {ProgressStage} from '../types';
+
 /**
  * 获取扫描阶段的显示文本
  */
-export function getStageText(stage: string, t: (key: string) => string): string {
+export function getStageText(stage: ProgressStage, t: (key: string) => string): string {
     switch (stage) {
         case 'scanning':
             return t('scanControl.scanning');
@@ -19,27 +21,15 @@ export function getStageText(stage: string, t: (key: string) => string): string 
 }
 
 /**
- * 格式化时间间隔为可读的字符串
+ * 精确格式化时间间隔
  */
-export function formatDuration(ms: number, t: (key: string, options?: any) => string): string {
-    if (ms < 1000) return t('common.time.millisecond', { count: ms });
-
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) return t('common.time.second', { count: seconds });
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (minutes < 60) {
-        return remainingSeconds > 0
-            ? t('common.time.minuteWithSeconds', { minutes, seconds: remainingSeconds })
-            : t('common.time.minute', { minutes });
+export function formatDurationPrecise(ms: number): string {
+    if (ms < 60000) {
+        return `${(ms / 1000).toFixed(3)} s`;
     }
-
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-
-    return remainingMinutes > 0
-        ? t('common.time.hourWithMinutes', { hours, minutes: remainingMinutes })
-        : t('common.time.hour', { hours });
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = (ms / 1000 - minutes * 60).toFixed(3);
+    return `${minutes}m ${remainingSeconds}s`;
 }
+

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import {defineConfig} from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -35,8 +35,7 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks: {
-                    "react-vendor": ["react", "react-dom"],
-                    "ui-vendor": ["@mui/material", "lucide-react"],
+                    "ui-vendor": ["@mui/material", "@emotion/react", "@emotion/styled", "lucide-react"],
                     "i18n": ["i18next", "react-i18next"],
                     "tauri": ["@tauri-apps/api", "@tauri-apps/plugin-opener"],
                     "state": ["zustand"],

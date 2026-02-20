@@ -1,173 +1,190 @@
-use crate::models::{FileNode, MftFileEntry};
+use crate::error::{AppError, AppResult};
+use crate::models::{FileNode, MftEntry};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
-use rayon::prelude::*;
 
-/// 从平面 MFT 条目构建树形结构
-pub fn build_tree(entries: Vec<MftFileEntry>, root_path: &str) -> Result<FileNode, String> {
-    // 预分配映射容量
+const ROOT_REF: u64 = 5;
+
+/// 从平面 MFT 条目列表构建文件树
+pub fn build_tree(entries: Vec<MftEntry>, root_path: &str) -> AppResult<FileNode> {
     let capacity = entries.len();
-    let mut entry_map: HashMap<u64, MftFileEntry> = HashMap::with_capacity(capacity);
+    let mut entry_map: HashMap<u64, MftEntry> = HashMap::with_capacity(capacity);
     let mut children_map: HashMap<u64, Vec<u64>> = HashMap::with_capacity(capacity / 4);
-    
-    // 收集需要回退获取大小的文件
-    let mut fallback_entries: Vec<(u64, String)> = Vec::new();
+    let mut fallback_refs: Vec<u64> = Vec::new();
 
     for mut entry in entries {
         let file_ref = entry.file_ref;
         let parent_ref = entry.parent_ref;
-        
-        // 特殊处理某些系统文件
-        // $BadClus 文件的大小不应该被计入总大小
+
+        // $BadClus 的 sparse 流大小不应计入磁盘占用
         if entry.name.eq_ignore_ascii_case("$BadClus") {
             entry.size = 0;
         }
-        
-        // 收集需要回退的文件
+
         if entry.needs_size_fallback {
-            fallback_entries.push((file_ref, entry.name.clone()));
+            fallback_refs.push(file_ref);
         }
-        
+
         entry_map.insert(file_ref, entry);
         children_map.entry(parent_ref).or_default().push(file_ref);
     }
-    
-    // 处理需要回退的文件
-    if !fallback_entries.is_empty() {
-        let sizes: Vec<_> = fallback_entries
+
+    // 并行回退：通过文件系统 API 补全 MFT 中大小为 0 的文件
+    if !fallback_refs.is_empty() {
+        let sizes: Vec<(u64, u64)> = fallback_refs
             .par_iter()
-            .map(|(file_ref, _name)| {
-                let size = get_file_size_from_entry(&entry_map, root_path, *file_ref)
-                    .unwrap_or(0);
-                (*file_ref, size)
+            .filter_map(|&fref| {
+                let size = resolve_file_size(&entry_map, root_path, fref).unwrap_or(0);
+                if size > 0 {
+                    Some((fref, size))
+                } else {
+                    None
+                }
             })
             .collect();
-        
-        for (file_ref, size) in sizes {
-            if let Some(entry) = entry_map.get_mut(&file_ref) {
-                if size > 0 {
-                    entry.size = size;
+
+        for (fref, size) in sizes {
+            if let Some(e) = entry_map.get_mut(&fref) {
+                e.size = size;
+            }
+        }
+    }
+
+    // 插入虚拟根节点
+    let root_name = root_path
+        .get(0..2)
+        .filter(|s| s.chars().nth(1) == Some(':'))
+        .unwrap_or(root_path)
+        .to_string();
+
+    entry_map.insert(
+        ROOT_REF,
+        MftEntry {
+            file_ref: ROOT_REF,
+            parent_ref: ROOT_REF,
+            name: root_name,
+            size: 0,
+            is_dir: true,
+            modified_time: 0,
+            needs_size_fallback: false,
+        },
+    );
+
+    build_tree_iterative(&entry_map, &children_map)
+}
+
+/// 迭代后序遍历构建 FileNode 树，彻底消除递归栈溢出风险
+fn build_tree_iterative(
+    entry_map: &HashMap<u64, MftEntry>,
+    children_map: &HashMap<u64, Vec<u64>>,
+) -> AppResult<FileNode> {
+    // 后序遍历：先确定访问顺序，再自底向上聚合
+    let mut visit_order: Vec<u64> = Vec::with_capacity(entry_map.len());
+    let mut stack: Vec<u64> = vec![ROOT_REF];
+
+    while let Some(fref) = stack.pop() {
+        visit_order.push(fref);
+        if let Some(children) = children_map.get(&fref) {
+            for &child in children {
+                if child != fref {
+                    stack.push(child);
                 }
             }
         }
     }
-    
-    // NTFS 根目录引用号
-    let root_ref = 5u64;
-    
-    // 为根目录名称提取驱动器号
-    let root_name = if root_path.len() >= 2 && root_path.chars().nth(1) == Some(':') {
-        &root_path[0..2]
-    } else {
-        root_path
-    }.to_string();
-    
-    let root_entry = MftFileEntry {
-        file_ref: root_ref,
-        parent_ref: root_ref,
-        name: root_name,
-        size: 0,
-        is_dir: true,
-        modified_time: 0,
-        needs_size_fallback: false,
-    };
-    
-    entry_map.insert(root_ref, root_entry);
-    
-    Ok(build_node_recursive(&entry_map, &children_map, root_ref)?)
-}
 
-fn build_node_recursive(
-    entry_map: &HashMap<u64, MftFileEntry>,
-    children_map: &HashMap<u64, Vec<u64>>,
-    file_ref: u64,
-) -> Result<FileNode, String> {
-    let entry = entry_map.get(&file_ref)
-        .ok_or_else(|| format!("Entry not found for file reference {}", file_ref))?;
+    // 自底向上构建节点
+    let mut built: HashMap<u64, FileNode> = HashMap::with_capacity(visit_order.len());
 
-    let file_size = entry.size;
-    let mut total_size = file_size;
-    let mut file_count = if entry.is_dir { 0 } else { 1 };
-    let mut dir_count = 0u64;
+    for &fref in visit_order.iter().rev() {
+        let entry = match entry_map.get(&fref) {
+            Some(e) => e,
+            None => continue,
+        };
 
-    // 处理子项
-    let children = if let Some(child_refs) = children_map.get(&file_ref) {
-        let mut children = Vec::with_capacity(child_refs.len());
-        for &child_ref in child_refs {
-            // 跳过自身引用
-            if child_ref == file_ref { continue; }
+        let mut total_size = entry.size;
+        let mut file_count = if entry.is_dir { 0u64 } else { 1u64 };
+        let mut dir_count = 0u64;
+        let mut children_nodes: Vec<FileNode> = Vec::new();
 
-            if let Ok(child_node) = build_node_recursive(entry_map, children_map, child_ref) {
-                total_size += child_node.size;
-                file_count += child_node.file_count;
-                if child_node.is_dir {
-                    dir_count += 1 + child_node.dir_count;
+        if let Some(child_refs) = children_map.get(&fref) {
+            for &child_ref in child_refs {
+                if child_ref == fref {
+                    continue;
                 }
-                children.push(child_node);
+                if let Some(child_node) = built.remove(&child_ref) {
+                    total_size += child_node.size;
+                    file_count += child_node.file_count;
+                    if child_node.is_dir {
+                        dir_count += 1 + child_node.dir_count;
+                    }
+                    children_nodes.push(child_node);
+                }
             }
         }
-        children
-    } else {
-        Vec::new()
-    };
 
-    Ok(FileNode {
-        name: entry.name.clone(),
-        size: total_size,
-        is_dir: entry.is_dir,
-        children,
-        file_count,
-        dir_count,
-        modified_time: entry.modified_time,
-    })
+        built.insert(
+            fref,
+            FileNode {
+                name: entry.name.clone(),
+                size: total_size,
+                is_dir: entry.is_dir,
+                children: children_nodes,
+                file_count,
+                dir_count,
+                modified_time: entry.modified_time,
+            },
+        );
+    }
+
+    built
+        .remove(&ROOT_REF)
+        .ok_or_else(|| AppError::Ntfs("Failed to build root node".to_string()))
 }
 
-/// 从 MFT 条目获取文件大小（通过构建完整路径）
-fn get_file_size_from_entry(
-    entry_map: &HashMap<u64, MftFileEntry>,
+/// 通过向上遍历 entry_map 构建完整路径，再用 fs::metadata 获取文件大小
+fn resolve_file_size(
+    entry_map: &HashMap<u64, MftEntry>,
     root_path: &str,
     file_ref: u64,
 ) -> Result<u64, String> {
-    // 构建文件的完整路径
-    let mut path_parts = Vec::new();
-    let mut current_ref = file_ref;
-    let root_ref = 5u64;
-    
-    // 从文件向上遍历到根目录，收集路径部分
-    while let Some(entry) = entry_map.get(&current_ref) {
-        path_parts.push(&entry.name);
-        if current_ref == root_ref || entry.parent_ref == current_ref {
+    let mut parts: Vec<&str> = Vec::new();
+    let mut cur = file_ref;
+
+    // 向上追溯到根节点，收集路径分量
+    for _ in 0..256 {
+        let entry = entry_map
+            .get(&cur)
+            .ok_or_else(|| format!("Entry {} not found", cur))?;
+        parts.push(&entry.name);
+        if cur == ROOT_REF || entry.parent_ref == cur {
             break;
         }
-        current_ref = entry.parent_ref;
+        cur = entry.parent_ref;
     }
-    
-    // 反转路径部分（从根到文件）
-    path_parts.reverse();
-    
-    // 跳过根目录名称，从第二个元素开始
-    if path_parts.len() > 1 {
-        path_parts.remove(0);
-    }
-    
-    // 构建完整路径
+
+    parts.reverse();
+    // 跳过驱动器根名称
+    let rel_parts = if parts.len() > 1 {
+        &parts[1..]
+    } else {
+        &parts[..]
+    };
+
     let mut full_path = String::from(root_path);
-    for part in path_parts {
+    for part in rel_parts {
         full_path.push('\\');
         full_path.push_str(part);
     }
-    
-    // 获取文件大小
-    match fs::metadata(&full_path) {
-        Ok(metadata) => {
-            if metadata.is_file() {
-                Ok(metadata.len())
+
+    fs::metadata(&full_path)
+        .map_err(|e| format!("metadata({full_path}): {e}"))
+        .and_then(|m| {
+            if m.is_file() {
+                Ok(m.len())
             } else {
-                Err(format!("Not a file: {}", full_path))
+                Err(format!("Not a file: {full_path}"))
             }
-        }
-        Err(e) => {
-            Err(format!("Failed to get size: {}", e))
-        }
-    }
+        })
 }

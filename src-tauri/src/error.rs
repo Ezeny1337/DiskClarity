@@ -4,53 +4,65 @@ use thiserror::Error;
 #[derive(Debug, Error, Serialize)]
 #[serde(tag = "type", content = "message")]
 pub enum AppError {
-    #[error("IO Error: {0}")]
+    #[error("IO error: {0}")]
     Io(String),
 
-    #[error("NTFS Error: {0}")]
+    #[error("NTFS error: {0}")]
     Ntfs(String),
 
-    #[error("Scan Task Failed: {0}")]
+    #[error("Scan task failed: {0}")]
     TaskFailed(String),
 
-    #[error("Serialization Failed: {0}")]
+    #[error("Serialization failed: {0}")]
     Serialization(String),
 
-    #[error("Compression Failed: {0}")]
+    #[error("Compression failed: {0}")]
     Compression(String),
 
-    #[error("Snapshot Error: {0}")]
+    #[error("Snapshot error: {0}")]
     Snapshot(String),
 
-    #[error("Network Error: {0}")]
+    #[error("Network error: {0}")]
     Network(String),
 
-    #[error("Scan Cancelled")]
+    #[error("Scan cancelled")]
     Cancelled,
 
-    #[error("No Active Scan")]
+    #[error("No active scan")]
     NoActiveScan,
 
-    #[error("Invalid Path: {0}")]
+    #[error("Invalid path: {0}")]
     InvalidPath(String),
 }
 
 pub type AppResult<T> = Result<T, AppError>;
 
 impl From<std::io::Error> for AppError {
-    fn from(err: std::io::Error) -> Self {
-        AppError::Io(err.to_string())
+    fn from(e: std::io::Error) -> Self {
+        AppError::Io(e.to_string())
     }
 }
 
 impl From<tokio::task::JoinError> for AppError {
-    fn from(err: tokio::task::JoinError) -> Self {
-        AppError::TaskFailed(err.to_string())
+    fn from(e: tokio::task::JoinError) -> Self {
+        AppError::TaskFailed(e.to_string())
     }
 }
 
 impl From<ureq::Error> for AppError {
-    fn from(err: ureq::Error) -> Self {
-        AppError::Network(err.to_string())
+    fn from(e: ureq::Error) -> Self {
+        AppError::Network(e.to_string())
+    }
+}
+
+impl From<rmp_serde::encode::Error> for AppError {
+    fn from(e: rmp_serde::encode::Error) -> Self {
+        AppError::Serialization(e.to_string())
+    }
+}
+
+impl From<rmp_serde::decode::Error> for AppError {
+    fn from(e: rmp_serde::decode::Error) -> Self {
+        AppError::Serialization(e.to_string())
     }
 }

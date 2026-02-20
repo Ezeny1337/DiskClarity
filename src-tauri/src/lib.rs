@@ -1,30 +1,30 @@
+mod commands;
+mod error;
+mod mft_parser;
+mod mft_scanner;
 mod models;
 mod ntfs_io;
-mod mft_parser;
-mod tree_builder;
-mod mft_scanner;
 mod snapshot;
-mod error;
-mod commands;
+mod tree_builder;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use std::sync::Arc;
-use parking_lot::Mutex;
 use mft_scanner::MftScanner;
+use parking_lot::Mutex;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 pub use models::{GitHubLatestRelease, GitHubRelease};
 
-// 全局扫描器状态
 pub struct ScannerState {
-    pub scanner: Arc<Mutex<Option<Arc<MftScanner>>>>,
+    pub scanners: Arc<Mutex<HashMap<String, Arc<MftScanner>>>>,
 }
 
-impl ScannerState {
-    pub fn new() -> Self {
+impl Default for ScannerState {
+    fn default() -> Self {
         Self {
-            scanner: Arc::new(Mutex::new(None)),
+            scanners: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -33,7 +33,7 @@ impl ScannerState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(ScannerState::new())
+        .manage(ScannerState::default())
         .invoke_handler(tauri::generate_handler![
             commands::start_scan,
             commands::get_scan_progress,
@@ -42,6 +42,7 @@ pub fn run() {
             commands::get_cpu_count,
             commands::get_disk_info,
             commands::open_in_explorer,
+            commands::set_webview_memory_level,
             commands::get_latest_release,
             commands::get_releases,
             commands::save_snapshot,
@@ -51,5 +52,5 @@ pub fn run() {
             commands::get_snapshot_file_sizes
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| eprintln!("Tauri runtime error: {e}"));
 }

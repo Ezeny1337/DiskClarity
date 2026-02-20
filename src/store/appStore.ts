@@ -1,53 +1,80 @@
-import { create } from 'zustand';
-import type { GitHubRelease } from '../services/updateService';
+import {create} from 'zustand';
+import type {GitHubRelease, UpdateInfo, UpdateStatus} from '../types';
 
-/**
- * 更新信息接口
- */
-interface UpdateInfo {
-    version: string;
-    url?: string;
-    releaseNotes?: string;
+interface ChangelogState {
+    open: boolean;
+    loading: boolean;
+    error: string | null;
+    releases: GitHubRelease[];
 }
 
-/**
- * 全局应用状态
- */
 interface AppState {
     updateInfo: UpdateInfo | null;
     isCheckingUpdate: boolean;
-    updateStatus: { message: string; severity: 'success' | 'error' | 'info' } | null;
-    changelogOpen: boolean;
-    changelogLoading: boolean;
-    changelogError: string | null;
-    changelogReleases: GitHubRelease[];
+    updateStatus: UpdateStatus | null;
+    changelog: ChangelogState;
 
     setUpdateInfo: (info: UpdateInfo | null) => void;
-    setIsCheckingUpdate: (isChecking: boolean) => void;
-    setUpdateStatus: (status: { message: string; severity: 'success' | 'error' | 'info' } | null) => void;
+    setIsCheckingUpdate: (v: boolean) => void;
+    setUpdateStatus: (status: UpdateStatus | null) => void;
+    setChangelog: (patch: Partial<ChangelogState>) => void;
+
+    // 向后兼容的单独 setter
     setChangelogOpen: (open: boolean) => void;
     setChangelogLoading: (loading: boolean) => void;
     setChangelogError: (error: string | null) => void;
     setChangelogReleases: (releases: GitHubRelease[]) => void;
+
+    // 向后兼容的读取器
+    changelogOpen: boolean;
+    changelogLoading: boolean;
+    changelogError: string | null;
+    changelogReleases: GitHubRelease[];
 }
 
-/**
- * 存储应用全局状态的 Store
- */
+const syncFlat = (cl: ChangelogState) => ({
+    changelogOpen: cl.open,
+    changelogLoading: cl.loading,
+    changelogError: cl.error,
+    changelogReleases: cl.releases,
+});
+
 export const useAppStore = create<AppState>((set) => ({
     updateInfo: null,
     isCheckingUpdate: false,
     updateStatus: null,
+    changelog: {open: false, loading: false, error: null, releases: []},
+
+    // 向后兼容的扁平字段
     changelogOpen: false,
     changelogLoading: false,
     changelogError: null,
     changelogReleases: [],
 
-    setUpdateInfo: (info) => set({ updateInfo: info }),
-    setIsCheckingUpdate: (isChecking) => set({ isCheckingUpdate: isChecking }),
-    setUpdateStatus: (status) => set({ updateStatus: status }),
-    setChangelogOpen: (open) => set({ changelogOpen: open }),
-    setChangelogLoading: (loading) => set({ changelogLoading: loading }),
-    setChangelogError: (error) => set({ changelogError: error }),
-    setChangelogReleases: (releases) => set({ changelogReleases: releases }),
+    setUpdateInfo: (info) => set({updateInfo: info}),
+    setIsCheckingUpdate: (v) => set({isCheckingUpdate: v}),
+    setUpdateStatus: (status) => set({updateStatus: status}),
+
+    setChangelog: (patch) =>
+        set((s) => {
+            const cl = {...s.changelog, ...patch};
+            return {changelog: cl, ...syncFlat(cl)};
+        }),
+
+    setChangelogOpen: (open) => set((s) => {
+        const cl = {...s.changelog, open};
+        return {changelog: cl, ...syncFlat(cl)};
+    }),
+    setChangelogLoading: (loading) => set((s) => {
+        const cl = {...s.changelog, loading};
+        return {changelog: cl, ...syncFlat(cl)};
+    }),
+    setChangelogError: (error) => set((s) => {
+        const cl = {...s.changelog, error};
+        return {changelog: cl, ...syncFlat(cl)};
+    }),
+    setChangelogReleases: (releases) => set((s) => {
+        const cl = {...s.changelog, releases};
+        return {changelog: cl, ...syncFlat(cl)};
+    }),
 }));
