@@ -51,10 +51,9 @@
 
 ### 🎨 UI
 
-<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/1e696e3f-b60a-486b-a0da-a8fd5a6b8744" />
-<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/317d13d8-f361-4fe9-938b-924b898d6145" />
-<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/a0413e92-b570-4777-b701-127f688608fd" />
-
+<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/083a1d14-25c8-477e-9bdb-f0aaae6804ab" />
+<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/446b53e2-7a3d-4ce3-abaf-aaae83f9c8f2" />
+<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/07328ad4-7290-45ce-a291-8e95141eeb82" />
 ## 🧰 安装
 
 ### 系统要求
@@ -69,7 +68,7 @@
 
 - 便携版可用
 - `diskclarity-setup.exe` - Windows 安装程序
-- `DiskClarity.msi` - 备用 Windows 安装程序
+- `diskClarity.msi` - 备用 Windows 安装程序
 
 ### 从源代码构建
 
