@@ -6,14 +6,14 @@ use crate::tree_builder;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct MftScanner {
     scanned_files: AtomicU64,
     scanned_dirs: AtomicU64,
     total_size: AtomicU64,
     should_cancel: AtomicBool,
-    start_time: Mutex<Option<Instant>>,
+    start_time: AtomicU64,
     pub current_stage: Mutex<ScanStage>,
 }
 
@@ -24,7 +24,7 @@ impl MftScanner {
             scanned_dirs: AtomicU64::new(0),
             total_size: AtomicU64::new(0),
             should_cancel: AtomicBool::new(false),
-            start_time: Mutex::new(None),
+            start_time: AtomicU64::new(0),
             current_stage: Mutex::new(ScanStage::Scanning),
         }
     }
@@ -34,11 +34,16 @@ impl MftScanner {
     }
 
     pub fn get_progress(&self) -> ScanProgress {
-        let duration_ms = self
-            .start_time
-            .lock()
-            .map(|t| t.elapsed().as_millis() as u64)
-            .unwrap_or(0);
+        let start = self.start_time.load(Ordering::Relaxed);
+        let duration_ms = if start > 0 {
+            (SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64)
+                .saturating_sub(start)
+        } else {
+            0
+        };
 
         ScanProgress {
             scanned_files: self.scanned_files.load(Ordering::Relaxed),
@@ -51,14 +56,18 @@ impl MftScanner {
         }
     }
 
-    pub fn scan(&self, root_path: &str, config: ScanConfig) -> AppResult<FileNode> {
+    pub fn scan(&self, root_path: &str, _config: ScanConfig) -> AppResult<FileNode> {
         // 重置计数器和状态
         self.scanned_files.store(0, Ordering::Relaxed);
         self.scanned_dirs.store(0, Ordering::Relaxed);
         self.total_size.store(0, Ordering::Relaxed);
         self.should_cancel.store(false, Ordering::Relaxed);
         *self.current_stage.lock() = ScanStage::Scanning;
-        *self.start_time.lock() = Some(Instant::now());
+        let start_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        self.start_time.store(start_ms, Ordering::Relaxed);
 
         // 提取驱动器号
         let drive = root_path
@@ -66,18 +75,7 @@ impl MftScanner {
             .filter(|s| s.chars().nth(1) == Some(':'))
             .ok_or_else(|| AppError::InvalidPath("Drive letter required, e.g. C:\\".to_string()))?;
 
-        // 构建局部线程池，避免并发扫描时修改全局线程池导致竞态
-        let pool = {
-            let mut builder = rayon::ThreadPoolBuilder::new();
-            if let Some(n) = config.max_threads {
-                builder = builder.num_threads(n);
-            }
-            builder
-                .build()
-                .map_err(|e| AppError::TaskFailed(e.to_string()))?
-        };
-
-        let entries = pool.install(|| self.scan_mft(drive))?;
+        let entries = self.scan_mft(drive)?;
 
         // 阶段 III: 构建文件树
         *self.current_stage.lock() = ScanStage::BuildingTree;

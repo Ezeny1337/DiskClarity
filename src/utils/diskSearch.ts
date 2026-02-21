@@ -110,37 +110,24 @@ export function filterFileTree(root: FileNode, criteria: DiskSearchCriteria): Fi
     const minSizeBytes = toSizeBytes(criteria.minSizeMb, criteria.minSizeUnit);
     const maxSizeBytes = toSizeBytes(criteria.maxSizeMb, criteria.maxSizeUnit);
 
-    // 使用Map来缓存已处理的节点，避免重复计算
-    const nodeCache = new Map<string, FileNode | null>();
-
     const walk = (node: FileNode): FileNode | null => {
-        // 检查缓存
-        if (nodeCache.has(node.path)) {
-            return nodeCache.get(node.path) || null;
-        }
-
         // 早期退出条件检查
         if (criteria.nodeType === 'file' && node.is_dir) {
-            // 对于只要文件的情况，如果是目录且没有子节点，直接跳过
             if (!node.children?.length) {
-                nodeCache.set(node.path, null);
                 return null;
             }
         }
 
         if (criteria.nodeType === 'dir' && !node.is_dir) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
         // 大小过滤的早期检查
         if (minSizeBytes !== null && node.size < minSizeBytes && !node.is_dir) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
         if (maxSizeBytes !== null && node.size > maxSizeBytes && !node.is_dir) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
@@ -157,17 +144,14 @@ export function filterFileTree(root: FileNode, criteria: DiskSearchCriteria): Fi
 
         // 检查目录的大小过滤条件
         if (criteria.nodeType === 'file' && node.is_dir && !childMatches.length) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
         if (minSizeBytes !== null && node.size < minSizeBytes && !childMatches.length) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
         if (maxSizeBytes !== null && node.size > maxSizeBytes && !childMatches.length) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
@@ -177,7 +161,6 @@ export function filterFileTree(root: FileNode, criteria: DiskSearchCriteria): Fi
         const extensionMatched = extensionMatcher ? extensionMatcher(node.name) : true;
 
         if ((!selfMatched || !extensionMatched) && !childMatches.length) {
-            nodeCache.set(node.path, null);
             return null;
         }
 
@@ -188,21 +171,16 @@ export function filterFileTree(root: FileNode, criteria: DiskSearchCriteria): Fi
         };
 
         // 只有在需要时才重新计算统计信息
-        let resultNode: FileNode;
         if (childMatches.length !== (node.children?.length || 0)) {
             const stats = recalcCounts(nextNode);
-            resultNode = {
+            return {
                 ...nextNode,
                 size: stats.size,
                 file_count: stats.fileCount,
                 dir_count: stats.dirCount,
             };
-        } else {
-            resultNode = nextNode;
         }
-
-        nodeCache.set(node.path, resultNode);
-        return resultNode;
+        return nextNode;
     };
 
     return walk(root);

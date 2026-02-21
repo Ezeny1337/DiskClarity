@@ -16,6 +16,52 @@ fn github_token_from_env() -> Option<String> {
         .filter(|v| !v.trim().is_empty())
 }
 
+/// 读取 Windows 系统代理设置
+#[cfg(windows)]
+fn get_system_proxy_url() -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let settings = hkcu
+        .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings")
+        .ok()?;
+    let enabled: u32 = settings.get_value("ProxyEnable").ok()?;
+    if enabled == 0 {
+        return None;
+    }
+    let server: String = settings.get_value("ProxyServer").ok()?;
+    if server.contains('=') {
+        for part in server.split(';') {
+            if let Some((key, val)) = part.split_once('=') {
+                let k = key.trim().to_lowercase();
+                if k == "https" || k == "http" {
+                    return Some(format!("http://{}", val.trim()));
+                }
+            }
+        }
+        None
+    } else {
+        Some(format!("http://{}", server.trim()))
+    }
+}
+
+#[cfg(not(windows))]
+fn get_system_proxy_url() -> Option<String> {
+    None
+}
+
+/// 根据系统代理设置构建 ureq Agent
+fn build_agent(timeout_secs: u64) -> ureq::Agent {
+    let mut builder = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)));
+    if let Some(proxy_url) = get_system_proxy_url() {
+        if let Ok(proxy) = ureq::Proxy::new(&proxy_url) {
+            builder = builder.proxy(Some(proxy));
+        }
+    }
+    builder.build().new_agent()
+}
+
 /// 将字节切片 gzip 压缩后返回
 fn gzip_compress(data: &[u8]) -> AppResult<Vec<u8>> {
     let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
@@ -31,7 +77,7 @@ pub async fn start_scan(
     config: ScanConfig,
     task_id: String,
     state: State<'_, ScannerState>,
-) -> AppResult<Vec<u8>> {
+) -> Result<tauri::ipc::Response, AppError> {
     let scanner = Arc::new(MftScanner::new());
 
     state
@@ -45,9 +91,10 @@ pub async fn start_scan(
 
     let result = scan_result??;
 
-    // msgpack 序列化后 gzip 压缩，利用 From<rmp_serde::encode::Error> 自动转换
+    // msgpack 序列化 + gzip 压缩，以二进制帧返回避免 JSON number[] 开销
     let msgpack_data = rmp_serde::to_vec_named(&result)?;
-    gzip_compress(&msgpack_data)
+    let compressed = gzip_compress(&msgpack_data)?;
+    Ok(tauri::ipc::Response::new(compressed))
 }
 
 #[tauri::command]
@@ -258,10 +305,7 @@ pub async fn get_snapshot_file_sizes(
 pub async fn get_latest_release(repo: String) -> AppResult<crate::GitHubLatestRelease> {
     let atom_url = format!("https://github.com/{}/releases.atom", repo.trim());
     task::spawn_blocking(move || {
-        let agent = ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(10)))
-            .build()
-            .new_agent();
+        let agent = build_agent(10);
 
         let response = agent
             .get(&atom_url)
@@ -305,10 +349,7 @@ pub async fn get_releases(
     let token = github_token_from_env();
 
     task::spawn_blocking(move || {
-        let agent = ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(12)))
-            .build()
-            .new_agent();
+        let agent = build_agent(12);
 
         let mut request = agent
             .get(&url)

@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "DiskClarity"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "flate2",
  "mimalloc",
@@ -22,6 +22,7 @@ dependencies = [
  "webview2-com",
  "windows 0.62.2",
  "windows-core 0.61.2",
+ "winreg",
 ]
 
 [[package]]

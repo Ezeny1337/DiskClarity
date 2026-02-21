@@ -1,6 +1,6 @@
 [package]
 name = "DiskClarity"
-version = "3.1.0"
+version = "3.1.1"
 description = "An efficient and lightweight disk space analysis tool"
 authors = ["Ezeny"]
 edition = "2021"
@@ -34,6 +34,12 @@ opt-level = "z"
 [profile.release.package.serde_derive]
 opt-level = "z"
 
+[profile.release.package.rayon]
+opt-level = 3
+
+[profile.release.package.rayon-core]
+opt-level = 3
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -60,4 +66,5 @@ windows = { version = "0.62.2", features = [
     "Win32_Security"
 ] }
 rayon = { version = "1.11", default-features = false }
+winreg = "0.55.0"
 webview2-com = { version = "0.38", default-features = false }

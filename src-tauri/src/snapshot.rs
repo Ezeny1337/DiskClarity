@@ -162,24 +162,28 @@ pub fn list_snapshots(drive_filter: Option<&str>) -> AppResult<Vec<SnapshotMeta>
 
 /// 仅加载快照元数据
 fn load_snapshot_meta(path: &PathBuf) -> AppResult<SnapshotMeta> {
-    let file_data = std::fs::read(path)?;
+    use std::io::Read;
+    let mut f = std::fs::File::open(path)?;
 
-    if file_data.len() < 12 || &file_data[..8] != DCSHOT_MAGIC {
+    // 读取定长头部：magic(8) + meta_len(4)
+    let mut header = [0u8; 12];
+    f.read_exact(&mut header)
+        .map_err(|_| AppError::Snapshot("Invalid snapshot file format".to_string()))?;
+
+    if &header[..8] != DCSHOT_MAGIC {
         return Err(AppError::Snapshot(
             "Invalid snapshot file format".to_string(),
         ));
     }
 
-    let meta_len = u32::from_le_bytes(
-        file_data[8..12]
-            .try_into()
-            .map_err(|_| AppError::Snapshot("Invalid snapshot header".to_string()))?,
-    ) as usize;
-    if file_data.len() < 12 + meta_len {
-        return Err(AppError::Snapshot("Truncated snapshot file".to_string()));
-    }
+    let meta_len = u32::from_le_bytes([header[8], header[9], header[10], header[11]]) as usize;
 
-    Ok(rmp_serde::from_slice(&file_data[12..12 + meta_len])?)
+    // 只读取 meta 字节，忽略后续压缩树数据
+    let mut meta_bytes = vec![0u8; meta_len];
+    f.read_exact(&mut meta_bytes)
+        .map_err(|_| AppError::Snapshot("Truncated snapshot file".to_string()))?;
+
+    Ok(rmp_serde::from_slice(&meta_bytes)?)
 }
 
 /// 加载完整快照文件
@@ -225,22 +229,31 @@ pub fn delete_snapshot(id: &str) -> AppResult<()> {
     Ok(())
 }
 
-/// 迭代展平 FileNode 树为 path -> node 映射，避免深层递归栈溢出
+/// 迭代展平 FileNode 树为 path -> node 映射，优化路径字符串分配
 fn flatten_tree<'a>(root: &'a FileNode) -> HashMap<String, &'a FileNode> {
-    // 预估节点总数（file_count + dir_count + 1），减少 HashMap 扩容
     let capacity = (root.file_count + root.dir_count + 1) as usize;
     let mut map = HashMap::with_capacity(capacity);
-    let mut stack: Vec<(&'a FileNode, String)> = Vec::with_capacity(64);
-    stack.push((root, String::new()));
-    while let Some((node, parent)) = stack.pop() {
-        let path = if parent.is_empty() {
-            node.name.clone()
+    let mut stack: Vec<(&'a FileNode, usize)> = Vec::with_capacity(64); // (node, path_depth)
+    let mut path_parts: Vec<&str> = Vec::with_capacity(32); // 重用路径组件
+
+    stack.push((root, 0));
+    while let Some((node, depth)) = stack.pop() {
+        // 调整路径栈深度
+        path_parts.truncate(depth);
+        path_parts.push(&node.name);
+
+        // 构建完整路径（只分配一次）
+        let path = if path_parts.len() == 1 {
+            path_parts[0].to_string()
         } else {
-            format!("{}\\{}", parent, node.name)
+            path_parts.join("\\")
         };
-        map.insert(path.clone(), node);
-        for child in &node.children {
-            stack.push((child, path.clone()));
+
+        map.insert(path, node);
+
+        // 子节点入栈（逆序保持遍历顺序）
+        for child in node.children.iter().rev() {
+            stack.push((child, path_parts.len()));
         }
     }
     map
@@ -288,8 +301,13 @@ pub fn diff_trees(
     let mut removed_count: u64 = 0;
     let mut changed_count: u64 = 0;
 
+    use std::collections::HashSet;
+    let mut processed_paths = HashSet::with_capacity(map_b.len());
+
     // 检查 B 中的所有节点
     for (path, node_b) in &map_b {
+        processed_paths.insert(path);
+
         if let Some(node_a) = map_a.get(path) {
             // 两边都有 - 检查大小变化
             if node_b.size != node_a.size {
@@ -336,9 +354,9 @@ pub fn diff_trees(
         }
     }
 
-    // 检查 A 中有但 B 中没有的节点 - 已删除
+    // 只遍历 A 中未处理的路径
     for (path, node_a) in &map_a {
-        if !map_b.contains_key(path) {
+        if !processed_paths.contains(path) {
             total_removed_size += node_a.size;
             removed_count += 1;
 

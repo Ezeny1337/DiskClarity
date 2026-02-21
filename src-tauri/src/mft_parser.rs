@@ -38,33 +38,38 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
     let usn_offset = read_u16(record_bytes, 0x04)? as usize;
     let usn_size = read_u16(record_bytes, 0x06)? as usize;
 
-    let fixup_buffer: Option<Vec<u8>> =
+    // 检查是否需要 fixup 修复
+    let fixup_data;
+    let record_bytes =
         if usn_offset > 0 && usn_size > 1 && usn_offset + usn_size * 2 <= record_bytes.len() {
             let fixup_value = read_u16(record_bytes, usn_offset)?;
-            // 只在确实需要修复时才分配
-            let needs = (1..usn_size).any(|i| {
-                let so = i * 512 - 2;
-                so + 2 <= record_bytes.len() && read_u16(record_bytes, so) == Some(fixup_value)
-            });
-            if needs {
-                let mut data = record_bytes.to_vec();
-                for i in 1..usn_size {
-                    let sector_off = i * 512 - 2;
-                    let fixup_off = usn_offset + i * 2;
-                    if let Some(v) = read_u16(&data.clone(), fixup_off) {
-                        data[sector_off] = v as u8;
-                        data[sector_off + 1] = (v >> 8) as u8;
+
+            // 快速检查第一个扇区是否需要修复
+            let first_sector_off = 512 - 2;
+            if first_sector_off + 2 <= record_bytes.len()
+                && read_u16(record_bytes, first_sector_off) == Some(fixup_value)
+            {
+                // 需要修复，分配buffer并修复所有扇区
+                fixup_data = {
+                    let mut data = record_bytes.to_vec();
+                    for i in 1..usn_size {
+                        let sector_off = i * 512 - 2;
+                        let fixup_off = usn_offset + i * 2;
+                        if fixup_off + 1 < data.len() && sector_off + 1 < data.len() {
+                            let v = u16::from_le_bytes([data[fixup_off], data[fixup_off + 1]]);
+                            data[sector_off] = v as u8;
+                            data[sector_off + 1] = (v >> 8) as u8;
+                        }
                     }
-                }
-                Some(data)
+                    data
+                };
+                &fixup_data
             } else {
-                None
+                record_bytes
             }
         } else {
-            None
+            record_bytes
         };
-
-    let record_bytes = fixup_buffer.as_deref().unwrap_or(record_bytes);
 
     // 记录标志：bit0=在用，bit1=目录，bit4=索引视图
     let flags = read_u16(record_bytes, 0x16)?;
@@ -84,7 +89,7 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
     let mut size = 0u64;
     let mut is_dir = false;
     let mut modified_time = 0u64;
-    let mut file_names: Vec<FileNameInfo> = Vec::new();
+    let mut best_fn: Option<FileNameInfo> = None;
 
     let mut offset = first_attr_offset;
     let mut attr_count = 0usize;
@@ -141,15 +146,21 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
                             .chunks_exact(2)
                             .map(|c| u16::from_le_bytes([c[0], c[1]]))
                             .collect();
-                        let current_name = String::from_utf16_lossy(&units).to_string();
+                        let current_name = String::from_utf16_lossy(&units);
                         // Win32 长文件名：长度 > 8 且不含短名称波浪号
                         let is_win32 = name_len > 8 && !current_name.contains('~');
-                        file_names.push(FileNameInfo {
+                        let candidate = FileNameInfo {
                             name: current_name,
                             parent_ref: current_parent_ref,
                             is_win32,
                             is_dir: current_is_dir,
-                        });
+                        };
+                        // 一次扫描取最优
+                        match &best_fn {
+                            None => best_fn = Some(candidate),
+                            Some(prev) if !prev.is_win32 && is_win32 => best_fn = Some(candidate),
+                            _ => {}
+                        }
                     }
                 }
             }
@@ -174,12 +185,8 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
     }
 
     // 优先选择 Win32 长文件名
-    if let Some(chosen) = file_names
-        .iter()
-        .find(|n| n.is_win32)
-        .or_else(|| file_names.first())
-    {
-        name = chosen.name.clone();
+    if let Some(chosen) = best_fn {
+        name = chosen.name;
         parent_ref = chosen.parent_ref;
         is_dir = chosen.is_dir;
     }

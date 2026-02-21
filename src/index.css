@@ -1,55 +1,55 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "system-ui", "sans-serif";
+    --font-sans: "Inter", "system-ui", "sans-serif";
 
-  --color-background: #09090b;
-  --color-surface: #18181b;
-  --color-surface2: #27272a;
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-text: #fafafa;
-  --color-text-muted: #a1a1aa;
+    --color-background: #09090b;
+    --color-surface: #18181b;
+    --color-surface2: #27272a;
+    --color-border: rgba(255, 255, 255, 0.1);
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-text: #fafafa;
+    --color-text-muted: #a1a1aa;
 
-  --shadow-glow: 0 0 20px -5px rgba(59, 130, 246, 0.5);
+    --shadow-glow: 0 0 20px -5px rgba(59, 130, 246, 0.5);
 }
 
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
+    :root {
+        color-scheme: dark;
+    }
 
-  body {
-    @apply bg-background text-text font-sans antialiased overflow-hidden;
-  }
+    body {
+        @apply bg-background text-text font-sans antialiased overflow-hidden;
+    }
 
-  /* 自定义滚动条 */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
 
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
+    ::-webkit-scrollbar-track {
+        @apply bg-transparent;
+    }
 
-  ::-webkit-scrollbar-thumb {
-    @apply bg-surface2 rounded-full hover:bg-zinc-600 transition-colors;
-  }
+    ::-webkit-scrollbar-thumb {
+        @apply bg-surface2 rounded-full hover:bg-zinc-600 transition-colors;
+    }
 }
 
 @layer utilities {
-  .glass {
-    @apply bg-surface/70 backdrop-blur-md border border-border;
-  }
+    .glass {
+        @apply bg-surface/70 backdrop-blur-md border border-border;
+    }
 
-  .glass-panel {
-    @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5 shadow-xl;
-  }
+    .glass-panel {
+        @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5 shadow-xl;
+    }
 
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 0;
-    background: transparent;
-  }
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 0;
+        background: transparent;
+    }
 }

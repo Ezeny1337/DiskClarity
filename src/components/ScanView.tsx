@@ -64,12 +64,12 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
             });
 
             try {
-                const compressedNums = await invoke<number[]>('start_scan', {
+                const buffer = await invoke<ArrayBuffer>('start_scan', {
                     path: drive,
                     config: scanConfig,
                     taskId: currentTaskId,
                 });
-                const compressed = new Uint8Array(compressedNums);
+                const compressed = new Uint8Array(buffer);
                 rawDataRef.current = compressed;
                 if (tabId) updateTabData(tabId, {rawScanData: compressed});
                 const decompressed = ungzip(compressed);
@@ -143,7 +143,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                     }
                     console.error('Failed to get scan progress:', err);
                 }
-            }, 100);
+            }, 200);
         }
 
         return () => {

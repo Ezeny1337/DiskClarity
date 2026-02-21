@@ -162,38 +162,45 @@ pub fn read_mft_raw(drive: &str, vol_info: &NtfsVolumeInfo) -> AppResult<Vec<u8>
     let handle = open_volume_handle(drive, false)?;
     let sector_size = vol_info.bytes_per_sector;
 
-    // 扇区对齐读取辅助闭包
-    let read_aligned = |h: &OwnedHandle, byte_offset: u64, byte_len: u64| -> Option<Vec<u8>> {
-        let aligned_off = (byte_offset / sector_size) * sector_size;
-        let inner_off = (byte_offset - aligned_off) as usize;
-        let aligned_len =
-            (byte_len as usize + inner_off).div_ceil(sector_size as usize) * sector_size as usize;
+    // 扇区对齐读取，直接将有效数据 extend 到目标 Vec
+    let read_aligned_into =
+        |h: &OwnedHandle, byte_offset: u64, byte_len: u64, out: &mut Vec<u8>| -> bool {
+            let aligned_off = (byte_offset / sector_size) * sector_size;
+            let inner_off = (byte_offset - aligned_off) as usize;
+            let aligned_len = (byte_len as usize + inner_off).div_ceil(sector_size as usize)
+                * sector_size as usize;
 
-        let mut buf = vec![0u8; aligned_len];
-        let mut n = 0u32;
-        unsafe {
-            SetFilePointerEx(**h, aligned_off as i64, None, FILE_BEGIN).ok()?;
-            ReadFile(**h, Some(&mut buf), Some(&mut n), None).ok()?;
-        }
-        let data = buf.get(inner_off..)?.to_vec();
-        Some(data)
-    };
+            let mut buf = vec![0u8; aligned_len];
+            let mut n = 0u32;
+            unsafe {
+                if SetFilePointerEx(**h, aligned_off as i64, None, FILE_BEGIN).is_err() {
+                    return false;
+                }
+                if ReadFile(**h, Some(&mut buf), Some(&mut n), None).is_err() {
+                    return false;
+                }
+            }
+            let valid = buf.get(inner_off..).map(|s| s.len()).unwrap_or(0);
+            let to_copy = valid.min(byte_len as usize);
+            out.extend_from_slice(&buf[inner_off..inner_off + to_copy]);
+            true
+        };
 
     // 读取 MFT 记录 0
-    let record_size = vol_info.bytes_per_mft_record;
-    let record0_bytes = read_aligned(
+    let record_size = vol_info.bytes_per_mft_record as usize;
+    let mut record0_bytes = Vec::with_capacity(record_size);
+    if !read_aligned_into(
         &handle,
         vol_info.mft_start_lcn * vol_info.bytes_per_cluster,
-        record_size,
-    )
-        .and_then(|v| {
-            if v.len() >= record_size as usize {
-                Some(v[..record_size as usize].to_vec())
-            } else {
-                None
-            }
-        })
-        .ok_or_else(|| crate::error::AppError::Ntfs("Unable to read MFT record 0".to_string()))?;
+        vol_info.bytes_per_mft_record,
+        &mut record0_bytes,
+    ) || record0_bytes.len() < record_size
+    {
+        return Err(crate::error::AppError::Ntfs(
+            "Unable to read MFT record 0".to_string(),
+        ));
+    }
+    record0_bytes.truncate(record_size);
 
     let mft_size = get_mft_size_from_record0(&record0_bytes)?;
     let data_runs = parse_data_runs_from_record0(&record0_bytes)?;
@@ -203,10 +210,7 @@ pub fn read_mft_raw(drive: &str, vol_info: &NtfsVolumeInfo) -> AppResult<Vec<u8>
     for run in &data_runs {
         let frag_off = run.start_cluster * vol_info.bytes_per_cluster;
         let frag_size = run.cluster_count * vol_info.bytes_per_cluster;
-        if let Some(chunk) = read_aligned(&handle, frag_off, frag_size) {
-            let to_copy = chunk.len().min(frag_size as usize);
-            mft_data.extend_from_slice(&chunk[..to_copy]);
-        }
+        read_aligned_into(&handle, frag_off, frag_size, &mut mft_data);
     }
 
     mft_data.truncate(mft_size as usize);

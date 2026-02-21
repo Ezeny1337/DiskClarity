@@ -71,76 +71,51 @@ pub fn build_tree(entries: Vec<MftEntry>, root_path: &str) -> AppResult<FileNode
         },
     );
 
-    build_tree_iterative(&entry_map, &children_map)
+    build_node_recursive(&entry_map, &children_map, ROOT_REF)
+        .ok_or_else(|| AppError::Ntfs("Failed to build root node".to_string()))
 }
 
-/// 迭代后序遍历构建 FileNode 树，彻底消除递归栈溢出风险
-fn build_tree_iterative(
+/// 递归构建 FileNode 树，深度优先，自底向上聚合
+fn build_node_recursive(
     entry_map: &HashMap<u64, MftEntry>,
     children_map: &HashMap<u64, Vec<u64>>,
-) -> AppResult<FileNode> {
-    // 后序遍历：先确定访问顺序，再自底向上聚合
-    let mut visit_order: Vec<u64> = Vec::with_capacity(entry_map.len());
-    let mut stack: Vec<u64> = vec![ROOT_REF];
+    file_ref: u64,
+) -> Option<FileNode> {
+    let entry = entry_map.get(&file_ref)?;
 
-    while let Some(fref) = stack.pop() {
-        visit_order.push(fref);
-        if let Some(children) = children_map.get(&fref) {
-            for &child in children {
-                if child != fref {
-                    stack.push(child);
+    let mut total_size = entry.size;
+    let mut file_count = if entry.is_dir { 0u64 } else { 1u64 };
+    let mut dir_count = 0u64;
+
+    let children = if let Some(child_refs) = children_map.get(&file_ref) {
+        let mut children_nodes = Vec::with_capacity(child_refs.len());
+        for &child_ref in child_refs {
+            if child_ref == file_ref {
+                continue;
+            }
+            if let Some(child_node) = build_node_recursive(entry_map, children_map, child_ref) {
+                total_size += child_node.size;
+                file_count += child_node.file_count;
+                if child_node.is_dir {
+                    dir_count += 1 + child_node.dir_count;
                 }
+                children_nodes.push(child_node);
             }
         }
-    }
+        children_nodes
+    } else {
+        Vec::new()
+    };
 
-    // 自底向上构建节点
-    let mut built: HashMap<u64, FileNode> = HashMap::with_capacity(visit_order.len());
-
-    for &fref in visit_order.iter().rev() {
-        let entry = match entry_map.get(&fref) {
-            Some(e) => e,
-            None => continue,
-        };
-
-        let mut total_size = entry.size;
-        let mut file_count = if entry.is_dir { 0u64 } else { 1u64 };
-        let mut dir_count = 0u64;
-        let mut children_nodes: Vec<FileNode> = Vec::new();
-
-        if let Some(child_refs) = children_map.get(&fref) {
-            for &child_ref in child_refs {
-                if child_ref == fref {
-                    continue;
-                }
-                if let Some(child_node) = built.remove(&child_ref) {
-                    total_size += child_node.size;
-                    file_count += child_node.file_count;
-                    if child_node.is_dir {
-                        dir_count += 1 + child_node.dir_count;
-                    }
-                    children_nodes.push(child_node);
-                }
-            }
-        }
-
-        built.insert(
-            fref,
-            FileNode {
-                name: entry.name.clone(),
-                size: total_size,
-                is_dir: entry.is_dir,
-                children: children_nodes,
-                file_count,
-                dir_count,
-                modified_time: entry.modified_time,
-            },
-        );
-    }
-
-    built
-        .remove(&ROOT_REF)
-        .ok_or_else(|| AppError::Ntfs("Failed to build root node".to_string()))
+    Some(FileNode {
+        name: entry.name.clone(),
+        size: total_size,
+        is_dir: entry.is_dir,
+        children,
+        file_count,
+        dir_count,
+        modified_time: entry.modified_time,
+    })
 }
 
 /// 通过向上遍历 entry_map 构建完整路径，再用 fs::metadata 获取文件大小
