@@ -99,18 +99,21 @@ const UpdateChecker: React.FC = () => {
 
 export const AppHeader: React.FC = () => {
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        // 只有当左键点击时才开始窗口拖拽
-        if (e.button === 0) {
-            WebviewWindow.getCurrent().startDragging().catch(() => {
-            });
+    // 拦截双击事件，用 JS 手动控制最大化/还原
+    const handleDoubleClick = async (e: React.MouseEvent) => {
+        if (e.target !== e.currentTarget) return;
+        const appWindow = WebviewWindow.getCurrent();
+        if (await appWindow.isMaximized()) {
+            await appWindow.unmaximize();
+        } else {
+            await appWindow.maximize();
         }
     };
 
     return (
         <header
-            onMouseDown={handleMouseDown}
             data-tauri-drag-region
+            onDoubleClick={handleDoubleClick}
             className="flex h-12 items-center justify-between px-3 border-b border-white/5 bg-zinc-900/50 backdrop-blur-xl select-none relative cursor-default! active:bg-white/5 transition-colors"
         >
             {/* Logo Area */}

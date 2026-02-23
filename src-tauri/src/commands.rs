@@ -125,14 +125,12 @@ pub async fn cancel_scan(task_id: String, state: State<'_, ScannerState>) -> App
 pub async fn get_drives() -> AppResult<Vec<String>> {
     #[cfg(target_os = "windows")]
     {
-        use std::path::Path;
-        let mut drives = Vec::new();
-        for letter in b'A'..=b'Z' {
-            let drive = format!("{}:\\", letter as char);
-            if Path::new(&drive).exists() {
-                drives.push(drive);
-            }
-        }
+        use windows::Win32::Storage::FileSystem::GetLogicalDrives;
+        let mask = unsafe { GetLogicalDrives() };
+        let drives: Vec<String> = (0u32..26)
+            .filter(|&i| mask & (1 << i) != 0)
+            .map(|i| format!("{}:\\", (b'A' + i as u8) as char))
+            .collect();
         return Ok(drives);
     };
 }

@@ -1,9 +1,9 @@
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
 import {useVirtualizer} from '@tanstack/react-virtual';
-import {alpha, Chip, Menu, MenuItem, Typography,} from '@mui/material';
+import {Chip, Menu, MenuItem} from '@mui/material';
 import {ArrowDown, ArrowUp, ChevronDown, ChevronRight, File, Folder, FolderOpen} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
-import type {FileNode} from '../types';
+import type {FileNode, GroupBy, SortField, SortOrder} from '../types';
 import {useTabStore} from '../store/tabStore';
 import {DEFAULT_GROUP_CONFIG, DEFAULT_SORT_CONFIG} from '../constants';
 import {formatBytes, formatPercentage} from '../utils/format';
@@ -40,6 +40,10 @@ interface TreeItemProps {
     maxInitialChildren?: number;
     isExpanded?: boolean;
     onToggleExpand?: (path: string) => void;
+    sortField: SortField;
+    sortOrder: SortOrder;
+    groupBy: GroupBy;
+    flatGrouping: boolean;
 }
 
 const TreeItem = React.memo(({
@@ -49,30 +53,28 @@ const TreeItem = React.memo(({
                                  onNavigate,
                                  maxInitialChildren = 100,
                                  isExpanded,
-                                 onToggleExpand
+                                 onToggleExpand,
+                                 sortField,
+                                 sortOrder,
+                                 groupBy,
+                                 flatGrouping,
                              }: TreeItemProps) => {
     const {t} = useTranslation();
     const tGrouping = useCallback((key: string) => t(key), [t]);
     const [localExpanded, setLocalExpanded] = useState(false);
     const expanded = isExpanded !== undefined ? isExpanded : localExpanded;
     const [displayCount, setDisplayCount] = useState(maxInitialChildren);
-    const {getActiveTab, updateCurrentTab} = useTabStore();
-    const activeTab = getActiveTab();
-    const sortField = activeTab?.data?.sortField || DEFAULT_SORT_CONFIG.field;
-    const sortOrder = activeTab?.data?.sortOrder || DEFAULT_SORT_CONFIG.order;
-    const groupBy = activeTab?.data?.groupBy || DEFAULT_GROUP_CONFIG.groupBy;
-    const flatGrouping = activeTab?.data?.flatGrouping || DEFAULT_GROUP_CONFIG.flatGrouping;
+    const {updateCurrentTab} = useTabStore();
+    const activeTab = useTabStore((state) => state.tabs.find((tab) => tab.id === state.activeTabId) ?? null);
     const hasChildren = node.is_dir && node.children && node.children.length > 0;
     const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number } | null>(null);
 
-    // 根据存储设置分组和排序子项
-    let sortedChildren = hasChildren ? [...node.children] : [];
-
-    // 应用分组
-    sortedChildren = groupFileNodes(sortedChildren, groupBy, node.path, flatGrouping, tGrouping);
-
-    // 应用排序
-    sortedChildren = sortGroupedNodes(sortedChildren, sortField, sortOrder);
+    const sortedChildren = useMemo(() => {
+        if (!hasChildren) return [];
+        let arr = [...node.children];
+        arr = groupFileNodes(arr, groupBy, node.path, flatGrouping, tGrouping);
+        return sortGroupedNodes(arr, sortField, sortOrder);
+    }, [node.children, node.path, hasChildren, groupBy, flatGrouping, sortField, sortOrder, tGrouping]);
 
     // 限制显示的子项数量
     const displayedChildren = sortedChildren.slice(0, displayCount);
@@ -123,7 +125,7 @@ const TreeItem = React.memo(({
         handleCloseContextMenu();
     };
 
-    const rowBg = (idx: number) => idx % 2 === 0 ? alpha('#ffffff', 0.02) : 'transparent';
+    const rowBg = (idx: number) => idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent';
 
     return (
         <>
@@ -135,19 +137,18 @@ const TreeItem = React.memo(({
                 className="flex items-center px-3 py-1.5 text-sm cursor-pointer transition-colors group"
                 style={{
                     paddingLeft: `${12 + level * 16}px`,
-                    borderBottom: `1px solid ${alpha('#ffffff', 0.04)}`,
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
                     background: rowBg(level),
                 }}
                 onMouseEnter={e => {
-                    (e.currentTarget as HTMLDivElement).style.background = alpha('#ffffff', 0.06);
+                    (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)';
                 }}
                 onMouseLeave={e => {
                     (e.currentTarget as HTMLDivElement).style.background = rowBg(level);
                 }}
             >
                 {/* 展开/折叠图标 */}
-                <span className="shrink-0 w-5 flex items-center justify-center mr-1"
-                      style={{color: alpha('#ffffff', 0.4)}}>
+                <span className="shrink-0 w-5 flex items-center justify-center mr-1 text-white/40">
           {node.is_dir ? (
               hasChildren ? (
                   expanded
@@ -157,33 +158,32 @@ const TreeItem = React.memo(({
                   <Folder size={14} style={{color: '#60a5fa'}}/>
               )
           ) : (
-              <File size={14} style={{color: alpha('#ffffff', 0.3)}}/>
+              <File size={14} className="text-white/30"/>
           )}
         </span>
 
                 {/* 名称 */}
-                <span className="flex-1 truncate font-medium"
-                      style={{color: node.is_dir ? 'white' : alpha('#ffffff', 0.8)}}>
+                <span className={`flex-1 truncate font-medium ${node.is_dir ? 'text-white' : 'text-white/80'}`}>
           {node.name}
         </span>
 
                 {/* 大小 */}
-                <span className="shrink-0 text-xs text-right w-20" style={{color: alpha('#ffffff', 0.6)}}>
+                <span className="shrink-0 text-xs text-right w-20 text-white/60">
           {formatBytes(node.size)}
         </span>
 
                 {/* 占比 */}
-                <span className="shrink-0 text-xs text-right w-14" style={{color: alpha('#ffffff', 0.4)}}>
+                <span className="shrink-0 text-xs text-right w-14 text-white/40">
           {node.is_dir ? formatPercentage(node.size, parentSize) : ''}
         </span>
 
                 {/* 文件数 */}
-                <span className="shrink-0 text-xs text-right w-20" style={{color: alpha('#ffffff', 0.4)}}>
+                <span className="shrink-0 text-xs text-right w-20 text-white/40">
           {node.is_dir ? `${(node.file_count || 0).toLocaleString()} ${t('fileList.files')}` : ''}
         </span>
 
                 {/* 修改时间 */}
-                <span className="shrink-0 text-xs text-right w-24" style={{color: alpha('#ffffff', 0.35)}}>
+                <span className="shrink-0 text-xs text-right w-24 text-white/35">
           {formatDate(node.modified_time, t)}
         </span>
             </div>
@@ -199,6 +199,10 @@ const TreeItem = React.memo(({
                             parentSize={node.size}
                             onNavigate={onNavigate}
                             maxInitialChildren={maxInitialChildren}
+                            sortField={sortField}
+                            sortOrder={sortOrder}
+                            groupBy={groupBy}
+                            flatGrouping={flatGrouping}
                         />
                     ))}
                     {hasMore && (
@@ -208,12 +212,7 @@ const TreeItem = React.memo(({
                                     e.stopPropagation();
                                     setDisplayCount(prev => Math.min(prev + 100, sortedChildren.length));
                                 }}
-                                className="text-xs px-3 py-1 rounded-lg border transition-all"
-                                style={{
-                                    color: alpha('#ffffff', 0.5),
-                                    borderColor: alpha('#ffffff', 0.12),
-                                    background: alpha('#ffffff', 0.04)
-                                }}
+                                className="text-xs px-3 py-1 rounded-lg border transition-all text-white/50 border-white/12 bg-white/4"
                             >
                                 {t('fileList.showMore', {count: sortedChildren.length - displayCount})}
                             </button>
@@ -228,22 +227,9 @@ const TreeItem = React.memo(({
                 onClose={handleCloseContextMenu}
                 anchorPosition={contextMenu ? {top: contextMenu.mouseY, left: contextMenu.mouseX} : undefined}
                 anchorReference="anchorPosition"
-                slotProps={{
-                    paper: {
-                        sx: {
-                            bgcolor: alpha('#1c1c1e', 0.98),
-                            border: `1px solid ${alpha('#ffffff', 0.1)}`,
-                            borderRadius: 2
-                        }
-                    }
-                }}
+                slotProps={{paper: {sx: {minWidth: 160}}}}
             >
-                <MenuItem onClick={handleOpenInExplorer} sx={{
-                    color: alpha('#ffffff', 0.8),
-                    fontSize: 13,
-                    gap: 1,
-                    '&:hover': {bgcolor: alpha('#ffffff', 0.08)}
-                }}>
+                <MenuItem onClick={handleOpenInExplorer} sx={{gap: 1}}>
                     <FolderOpen size={16}/>
                     {t('fileList.openInExplorer')}
                 </MenuItem>
@@ -338,7 +324,7 @@ export const FileList: React.FC = () => {
     if (!displayNode) {
         return (
             <div className="flex items-center justify-center h-full">
-                <Typography sx={{color: alpha('#ffffff', 0.3)}}>{t('fileList.noData')}</Typography>
+                <span className="text-sm text-white/30">{t('fileList.noData')}</span>
             </div>
         );
     }
@@ -354,8 +340,7 @@ export const FileList: React.FC = () => {
     return (
         <div className="w-full h-full flex flex-col overflow-hidden">
             {/* 顶部工具栏 */}
-            <div className="shrink-0 flex items-center gap-2 px-4 py-2 flex-wrap"
-                 style={{borderBottom: `1px solid ${alpha('#ffffff', 0.07)}`, background: alpha('#ffffff', 0.03)}}>
+            <div className="shrink-0 flex items-center gap-2 px-4 py-2 flex-wrap border-b border-white/7 bg-white/3">
 
                 {/* 面包屑 */}
                 <div className="flex-1 min-w-0">
@@ -387,9 +372,9 @@ export const FileList: React.FC = () => {
                                 }}
                                 className="flex items-center gap-0.5 text-xs px-2 py-1 rounded-lg transition-all"
                                 style={{
-                                    color: sortField === f.value ? 'white' : alpha('#ffffff', 0.4),
-                                    background: sortField === f.value ? alpha('#8b5cf6', 0.2) : 'transparent',
-                                    border: `1px solid ${sortField === f.value ? alpha('#8b5cf6', 0.4) : 'transparent'}`,
+                                    color: sortField === f.value ? 'white' : 'rgba(255,255,255,0.4)',
+                                    background: sortField === f.value ? 'rgba(139,92,246,0.2)' : 'transparent',
+                                    border: `1px solid ${sortField === f.value ? 'rgba(139,92,246,0.4)' : 'transparent'}`,
                                 }}
                         >
                             {f.label}
@@ -406,40 +391,30 @@ export const FileList: React.FC = () => {
                 <div className="flex items-center gap-1.5 shrink-0">
                     <Chip label={formatBytes(displayNode.size || 0)} size="small"
                           sx={{
-                              height: 20,
-                              fontSize: 11,
-                              bgcolor: alpha('#ffffff', 0.08),
-                              color: alpha('#ffffff', 0.7),
-                              border: `1px solid ${alpha('#ffffff', 0.12)}`
+                              bgcolor: 'rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              border: '1px solid rgba(255,255,255,0.12)'
                           }}/>
                     <Chip label={`${(displayNode.file_count || 0).toLocaleString()} ${t('fileList.files')}`}
                           size="small"
                           sx={{
-                              height: 20,
-                              fontSize: 11,
-                              bgcolor: alpha('#ffffff', 0.08),
-                              color: alpha('#ffffff', 0.7),
-                              border: `1px solid ${alpha('#ffffff', 0.12)}`
+                              bgcolor: 'rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              border: '1px solid rgba(255,255,255,0.12)'
                           }}/>
                     <Chip label={`${(displayNode.dir_count || 0).toLocaleString()} ${t('fileList.folders')}`}
                           size="small"
                           sx={{
-                              height: 20,
-                              fontSize: 11,
-                              bgcolor: alpha('#ffffff', 0.08),
-                              color: alpha('#ffffff', 0.7),
-                              border: `1px solid ${alpha('#ffffff', 0.12)}`
+                              bgcolor: 'rgba(255,255,255,0.08)',
+                              color: 'rgba(255,255,255,0.7)',
+                              border: '1px solid rgba(255,255,255,0.12)'
                           }}/>
                 </div>
             </div>
 
             {/* 表头 */}
-            <div className="shrink-0 flex items-center px-3 py-1.5 text-xs font-semibold"
-                 style={{
-                     background: alpha('#ffffff', 0.05),
-                     borderBottom: `1px solid ${alpha('#ffffff', 0.07)}`,
-                     color: alpha('#ffffff', 0.4)
-                 }}>
+            <div
+                className="shrink-0 flex items-center px-3 py-1.5 text-xs font-semibold bg-white/5 border-b border-white/7 text-white/40">
                 <span className="flex-1">{t('fileList.name')}</span>
                 <span className="w-20 text-right">{t('fileList.size')}</span>
                 <span className="w-16 text-right ml-2">{t('fileList.percentage')}</span>
@@ -470,6 +445,10 @@ export const FileList: React.FC = () => {
                                     onNavigate={handleNavigate}
                                     isExpanded={expandedPaths.has(child.path)}
                                     onToggleExpand={handleToggleExpand}
+                                    sortField={sortField}
+                                    sortOrder={sortOrder}
+                                    groupBy={groupBy}
+                                    flatGrouping={flatGrouping}
                                 />
                             </div>
                         );

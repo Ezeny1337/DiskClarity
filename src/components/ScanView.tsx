@@ -124,7 +124,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
         };
 
         performScan();
-    }, [drive, tabId, activeTab?.data?.scanResult, activeTab?.data?.isScanning]);
+    }, [drive, tabId, scanConfig, activeTab?.data?.scanResult, activeTab?.data?.isScanning]);
 
     useEffect(() => {
         let interval: ReturnType<typeof setInterval> | null = null;
@@ -312,30 +312,17 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                         </div>
                     </div>
                 </div>
-                <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 0px;
-          background: transparent;
-        }
-      `}</style>
             </div>
 
             {/* 快照命名对话框 */}
             <Dialog
                 open={showLabelDialog}
                 onClose={() => setShowLabelDialog(false)}
-                slotProps={{
-                    paper: {
-                        sx: {
-                            bgcolor: '#1c1c1e',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: 3,
-                            minWidth: 360
-                        }
-                    }
-                }}
+                slotProps={{paper: {sx: {minWidth: 360}}}}
             >
-                <DialogTitle sx={{color: 'white', fontWeight: 700}}>{t('snapshot.saveSnapshot')}</DialogTitle>
+                <DialogTitle>
+                    <span className="text-base font-bold text-white">{t('snapshot.saveSnapshot')}</span>
+                </DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
@@ -347,16 +334,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') handleConfirmSave();
                         }}
-                        sx={{
-                            mt: 1,
-                            '& .MuiOutlinedInput-root': {
-                                color: 'white',
-                                '& fieldset': {borderColor: 'rgba(255,255,255,0.2)'},
-                                '&:hover fieldset': {borderColor: 'rgba(255,255,255,0.4)'},
-                                '&.Mui-focused fieldset': {borderColor: '#8b5cf6'}
-                            },
-                            '& .MuiInputLabel-root': {color: 'rgba(255,255,255,0.5)'},
-                        }}
+                        sx={{mt: 1}}
                     />
                 </DialogContent>
                 <DialogActions sx={{px: 3, pb: 2, gap: 1}}>

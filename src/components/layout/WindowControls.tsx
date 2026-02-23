@@ -10,6 +10,9 @@ export const WindowControls: React.FC = () => {
         const appWindow = WebviewWindow.getCurrent();
         const updateState = async () => {
             setIsMaximized(await appWindow.isMaximized());
+            document.body.style.display = 'none';
+            document.body.offsetHeight;
+            document.body.style.display = '';
         };
         updateState();
 

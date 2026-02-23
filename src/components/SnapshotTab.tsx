@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {alpha, Box, Checkbox, Chip, IconButton, Tooltip, Typography,} from '@mui/material';
+import {Checkbox, Chip, IconButton, Tooltip} from '@mui/material';
 import {ArrowLeftRight, Images, Loader2, RefreshCw, Trash2} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import {useSnapshotStore} from '../store/snapshotStore';
@@ -182,18 +182,16 @@ export const SnapshotTab: React.FC = () => {
                             <div
                                 className="col-span-2 rounded-lg border border-white/8 bg-white/3 px-3 py-2 flex gap-6">
                                 <div className="flex-1 min-w-0">
-                                    <Typography variant="caption"
-                                                sx={{color: alpha('#ffffff', 0.55)}}>{t('snapshot.old')}</Typography>
-                                    <Typography variant="body2" sx={{color: '#a5b4fc', fontWeight: 700}} noWrap>
+                                    <span className="text-xs text-white/55 block">{t('snapshot.old')}</span>
+                                    <span className="text-sm font-bold text-indigo-300 truncate block">
                                         {snapOldInfo ? `${snapOldInfo.file_count.toLocaleString()} ${t('fileList.files')} · ${formatBytes(snapOldInfo.total_size)}` : '—'}
-                                    </Typography>
+                                    </span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <Typography variant="caption"
-                                                sx={{color: alpha('#ffffff', 0.55)}}>{t('snapshot.new')}</Typography>
-                                    <Typography variant="body2" sx={{color: '#fcd34d', fontWeight: 700}} noWrap>
+                                    <span className="text-xs text-white/55 block">{t('snapshot.new')}</span>
+                                    <span className="text-sm font-bold text-amber-300 truncate block">
                                         {snapNewInfo ? `${snapNewInfo.file_count.toLocaleString()} ${t('fileList.files')} · ${formatBytes(snapNewInfo.total_size)}` : '—'}
-                                    </Typography>
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -206,19 +204,12 @@ export const SnapshotTab: React.FC = () => {
     return (
         <div className="h-full flex flex-col overflow-hidden bg-background">
             {/* 顶部工具栏 */}
-            <div
-                className="flex items-center justify-between px-6 py-4 border-b"
-                style={{borderColor: alpha('#ffffff', 0.08)}}
-            >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
                 <div className="flex items-center gap-3">
                     <Images size={28} style={{color: '#a78bfa'}}/>
                     <div>
-                        <Typography variant="h6" sx={{color: 'white', fontWeight: 700, lineHeight: 1.2}}>
-                            {t('snapshot.management')}
-                        </Typography>
-                        <Typography variant="caption" sx={{color: alpha('#ffffff', 0.5)}}>
-                            {t('snapshot.managementDesc')}
-                        </Typography>
+                        <p className="text-base font-bold text-white leading-tight">{t('snapshot.management')}</p>
+                        <span className="text-xs text-white/50">{t('snapshot.managementDesc')}</span>
                     </div>
                 </div>
 
@@ -233,7 +224,7 @@ export const SnapshotTab: React.FC = () => {
                         </button>
                     )}
                     <Tooltip title={t('snapshot.refresh')}>
-                        <IconButton onClick={loadSnapshots} disabled={isLoading} sx={{color: alpha('#ffffff', 0.6)}}>
+                        <IconButton onClick={loadSnapshots} disabled={isLoading}>
                             {isLoading ? <Loader2 size={18} className="animate-spin"/> : <RefreshCw size={18}/>}
                         </IconButton>
                     </Tooltip>
@@ -242,15 +233,10 @@ export const SnapshotTab: React.FC = () => {
 
             {/* 选择提示 */}
             {selectedIds.length > 0 && (
-                <div
-                    className="px-6 py-2 text-sm"
-                    style={{background: alpha('#8b5cf6', 0.1), borderBottom: `1px solid ${alpha('#8b5cf6', 0.2)}`}}
-                >
-          <span style={{color: '#a78bfa'}}>
-            {selectedIds.length === 1
-                ? t('snapshot.selectedOld')
-                : t('snapshot.selectedBoth')}
-          </span>
+                <div className="px-6 py-2 text-sm bg-violet-500/10 border-b border-violet-500/20">
+                    <span className="text-violet-300">
+                        {selectedIds.length === 1 ? t('snapshot.selectedOld') : t('snapshot.selectedBoth')}
+                    </span>
                 </div>
             )}
 
@@ -269,24 +255,16 @@ export const SnapshotTab: React.FC = () => {
                     </div>
                 ) : snapshots.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 gap-4">
-                        <Images size={64} style={{color: alpha('#ffffff', 0.15)}}/>
-                        <Typography variant="body1" sx={{color: alpha('#ffffff', 0.4)}}>
-                            {t('snapshot.noSnapshots')}
-                        </Typography>
-                        <Typography variant="caption" sx={{color: alpha('#ffffff', 0.25)}}>
-                            {t('snapshot.noSnapshotsHint')}
-                        </Typography>
+                        <Images size={64} className="text-white/15"/>
+                        <p className="text-sm text-white/40">{t('snapshot.noSnapshots')}</p>
+                        <span className="text-xs text-white/25">{t('snapshot.noSnapshotsHint')}</span>
                     </div>
                 ) : (
                     <div className="space-y-2">
                         {/* 表头 */}
                         <div
-                            className="grid text-xs font-semibold px-4 py-2 rounded-lg"
-                            style={{
-                                gridTemplateColumns: '40px 1fr 160px 100px 100px 48px',
-                                color: alpha('#ffffff', 0.4),
-                                background: alpha('#ffffff', 0.04),
-                            }}
+                            className="grid text-xs font-semibold px-4 py-2 rounded-lg text-white/40 bg-white/4"
+                            style={{gridTemplateColumns: '40px 1fr 160px 100px 100px 48px'}}
                         >
                             <span/>
                             <span>{t('snapshot.nameOrDrive')}</span>
@@ -307,27 +285,18 @@ export const SnapshotTab: React.FC = () => {
                                     className="grid items-center px-4 py-3 rounded-xl cursor-pointer transition-all"
                                     style={{
                                         gridTemplateColumns: '40px 1fr 160px 100px 100px 48px',
-                                        background: isSelected
-                                            ? alpha('#8b5cf6', 0.15)
-                                            : idx % 2 === 0
-                                                ? alpha('#ffffff', 0.03)
-                                                : 'transparent',
-                                        border: `1px solid ${isSelected ? alpha('#8b5cf6', 0.4) : alpha('#ffffff', 0.06)}`,
+                                        background: isSelected ? 'rgba(139,92,246,0.15)' : idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
+                                        border: `1px solid ${isSelected ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.06)'}`,
                                     }}
                                 >
-                                    <Box sx={{display: 'flex', alignItems: 'center'}}>
+                                    <div className="flex items-center">
                                         <Checkbox
                                             checked={isSelected}
                                             size="small"
-                                            sx={{
-                                                p: 0,
-                                                color: alpha('#ffffff', 0.3),
-                                                '&.Mui-checked': {color: '#a78bfa'},
-                                            }}
                                             onClick={(e) => e.stopPropagation()}
                                             onChange={() => toggleSelect(snap.id)}
                                         />
-                                    </Box>
+                                    </div>
 
                                     <div className="flex items-center gap-2 min-w-0">
                                         {selOrder >= 0 && (
@@ -335,49 +304,34 @@ export const SnapshotTab: React.FC = () => {
                                                 label={selOrder === 0 ? t('snapshot.old') : t('snapshot.new')}
                                                 size="small"
                                                 sx={{
-                                                    height: 20,
-                                                    fontSize: 11,
-                                                    fontWeight: 700,
-                                                    bgcolor: selOrder === 0 ? alpha('#6366f1', 0.3) : alpha('#f59e0b', 0.3),
+                                                    bgcolor: selOrder === 0 ? 'rgba(99,102,241,0.3)' : 'rgba(245,158,11,0.3)',
                                                     color: selOrder === 0 ? '#a5b4fc' : '#fcd34d',
-                                                    border: `1px solid ${selOrder === 0 ? alpha('#6366f1', 0.5) : alpha('#f59e0b', 0.5)}`,
+                                                    border: `1px solid ${selOrder === 0 ? 'rgba(99,102,241,0.5)' : 'rgba(245,158,11,0.5)'}`,
                                                 }}
                                             />
                                         )}
                                         <div className="min-w-0">
-                                            <Typography variant="body2"
-                                                        sx={{color: 'white', fontWeight: 600, fontSize: 12.5}} noWrap>
-                                                {snap.label ?? snap.drive}
-                                            </Typography>
+                                            <p className="text-white font-semibold text-[12.5px] truncate">{snap.label ?? snap.drive}</p>
                                             {snap.label && (
-                                                <Typography variant="caption" sx={{color: alpha('#ffffff', 0.4)}}
-                                                            noWrap>
-                                                    {snap.drive}
-                                                </Typography>
+                                                <span
+                                                    className="text-xs text-white/40 truncate block">{snap.drive}</span>
                                             )}
                                         </div>
                                     </div>
 
-                                    <Typography variant="caption" sx={{color: alpha('#ffffff', 0.6)}}>
-                                        {formatTimestamp(snap.created_at)}
-                                    </Typography>
+                                    <span className="text-xs text-white/60">{formatTimestamp(snap.created_at)}</span>
 
-                                    <Typography variant="caption" sx={{color: alpha('#ffffff', 0.8), fontWeight: 500}}>
-                                        {formatBytes(snap.total_size)}
-                                    </Typography>
+                                    <span
+                                        className="text-xs text-white/80 font-medium">{formatBytes(snap.total_size)}</span>
 
-                                    <Typography variant="caption" sx={{color: alpha('#ffffff', 0.6)}}>
-                                        {snap.file_count.toLocaleString()} {t('fileList.files')}
-                                    </Typography>
+                                    <span
+                                        className="text-xs text-white/60">{snap.file_count.toLocaleString()} {t('fileList.files')}</span>
 
                                     <Tooltip title={t('snapshot.delete')}>
                                         <IconButton
                                             size="small"
                                             onClick={(e) => handleDelete(snap.id, e)}
-                                            sx={{
-                                                color: alpha('#ffffff', 0.3),
-                                                '&:hover': {color: '#f87171', bgcolor: alpha('#ef4444', 0.1)},
-                                            }}
+                                            sx={{'&:hover': {color: '#f87171', bgcolor: 'rgba(239,68,68,0.1)'}}}
                                         >
                                             <Trash2 size={16}/>
                                         </IconButton>
@@ -389,9 +343,6 @@ export const SnapshotTab: React.FC = () => {
                 )}
             </div>
 
-            <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 0px; background: transparent; }
-      `}</style>
         </div>
     );
 };

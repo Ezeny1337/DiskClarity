@@ -1,17 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {
-    alpha,
-    Chip,
-    FormControl,
-    FormControlLabel,
-    MenuItem,
-    Select,
-    Slider,
-    Switch,
-    Tab,
-    Tabs,
-    Typography,
-} from '@mui/material';
+import {Chip, FormControl, FormControlLabel, MenuItem, Select, Slider, Switch, Tab, Tabs,} from '@mui/material';
 import {BarChart2, History, List} from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {useTranslation} from 'react-i18next';
@@ -30,10 +18,9 @@ import {TrendDialog, type TrendPoint} from './snapshot/TrendDialog';
 
 // 统计徽章组件
 const StatBadge: React.FC<{ label: string; value: string; color: string }> = ({label, value, color}) => (
-    <div className="flex flex-col items-center px-3 py-1 rounded-lg"
-         style={{background: alpha('#ffffff', 0.05), border: `1px solid ${alpha('#ffffff', 0.08)}`}}>
+    <div className="flex flex-col items-center px-3 py-1 rounded-lg bg-white/5 border border-white/8">
         <span className="text-xs font-semibold" style={{color}}>{value}</span>
-        <span className="text-xs" style={{color: alpha('#ffffff', 0.4)}}>{label}</span>
+        <span className="text-xs text-white/40">{label}</span>
     </div>
 );
 
@@ -140,18 +127,22 @@ export const SnapshotAnalysisView: React.FC = () => {
 
             const cache: Record<string, Record<string, number>> = {};
 
-            await Promise.all(relevantMetas.map(async (snap) => {
-                try {
-                    const sizes = await invoke<Record<string, number>>('get_snapshot_file_sizes', {id: snap.id});
-                    const normalized: Record<string, number> = {};
-                    for (const [k, v] of Object.entries(sizes)) {
-                        normalized[normPath(k)] = v;
+            const CONCURRENCY = 12;
+            for (let i = 0; i < relevantMetas.length; i += CONCURRENCY) {
+                const batch = relevantMetas.slice(i, i + CONCURRENCY);
+                await Promise.all(batch.map(async (snap) => {
+                    try {
+                        const sizes = await invoke<Record<string, number>>('get_snapshot_file_sizes', {id: snap.id});
+                        const normalized: Record<string, number> = {};
+                        for (const [k, v] of Object.entries(sizes)) {
+                            normalized[normPath(k)] = v;
+                        }
+                        cache[snap.id] = normalized;
+                    } catch (e) {
+                        console.warn(`Failed to load sizes for snapshot ${snap.id}:`, e);
                     }
-                    cache[snap.id] = normalized;
-                } catch (e) {
-                    console.warn(`Failed to load sizes for snapshot ${snap.id}:`, e);
-                }
-            }));
+                }));
+            }
             setHistoryCache(cache);
             setHistoryLoaded(true);
         } catch (e) {
@@ -212,7 +203,7 @@ export const SnapshotAnalysisView: React.FC = () => {
         if (isDiffing) {
             return (
                 <div className="flex items-center justify-center h-full">
-                    <Typography sx={{color: alpha('#ffffff', 0.6)}}>{t('snapshot.loading')}</Typography>
+                    <span className="text-sm text-white/60">{t('snapshot.loading')}</span>
                 </div>
             );
         }
@@ -220,14 +211,14 @@ export const SnapshotAnalysisView: React.FC = () => {
         if (diffError) {
             return (
                 <div className="flex items-center justify-center h-full">
-                    <Typography sx={{color: '#ef4444'}}>{diffError}</Typography>
+                    <span className="text-sm text-red-400">{diffError}</span>
                 </div>
             );
         }
 
         return (
             <div className="flex items-center justify-center h-full">
-                <Typography sx={{color: alpha('#ffffff', 0.4)}}>{t('snapshot.noAnalysis')}</Typography>
+                <span className="text-sm text-white/40">{t('snapshot.noAnalysis')}</span>
             </div>
         );
     }
@@ -241,24 +232,15 @@ export const SnapshotAnalysisView: React.FC = () => {
     return (
         <div className="h-full flex flex-col overflow-hidden bg-background">
             {/* 顶部统计栏 */}
-            <div className="flex items-center gap-4 px-6 py-3 flex-wrap border-b shrink-0"
-                 style={{borderColor: alpha('#ffffff', 0.08)}}>
+            <div className="flex items-center gap-4 px-6 py-3 flex-wrap border-b border-white/8 shrink-0">
                 <div className="flex items-center gap-2 flex-wrap">
                     <Chip label={t('snapshot.old')} size="small"
-                          sx={{bgcolor: alpha('#6366f1', 0.3), color: '#a5b4fc', fontWeight: 700, fontSize: 11}}/>
-                    <Typography variant="caption" sx={{
-                        color: alpha('#ffffff', 0.5),
-                        fontFamily: 'monospace',
-                        fontSize: 11
-                    }}>{snapOldId}</Typography>
-                    <Typography variant="caption" sx={{color: alpha('#ffffff', 0.3)}}>→</Typography>
+                          sx={{bgcolor: 'rgba(99,102,241,0.3)', color: '#a5b4fc'}}/>
+                    <span className="text-[11px] text-white/50 font-mono">{snapOldId}</span>
+                    <span className="text-[11px] text-white/30">→</span>
                     <Chip label={t('snapshot.new')} size="small"
-                          sx={{bgcolor: alpha('#f59e0b', 0.3), color: '#fcd34d', fontWeight: 700, fontSize: 11}}/>
-                    <Typography variant="caption" sx={{
-                        color: alpha('#ffffff', 0.5),
-                        fontFamily: 'monospace',
-                        fontSize: 11
-                    }}>{snapNewId}</Typography>
+                          sx={{bgcolor: 'rgba(245,158,11,0.3)', color: '#fcd34d'}}/>
+                    <span className="text-[11px] text-white/50 font-mono">{snapNewId}</span>
                 </div>
                 <div className="flex gap-3 ml-auto flex-wrap">
                     <StatBadge label={t('snapshot.kind.added')} value={`+${diffResult.added_count}`} color="#22c55e"/>
@@ -267,28 +249,22 @@ export const SnapshotAnalysisView: React.FC = () => {
                     <StatBadge label={t('snapshot.kind.grown')} value={`~${diffResult.changed_count}`} color="#3b82f6"/>
                     <StatBadge label={t('snapshot.netChange')}
                                value={`${netChange >= 0 ? '+' : ''}${formatBytes(Math.abs(netChange))}`}
-                               color={alpha('#ffffff', 0.7)}/>
+                               color="rgba(255,255,255,0.7)"/>
                 </div>
             </div>
 
             {/* 左侧设置 + 右侧可滚动主内容 */}
             <div className="flex-1 flex min-h-0">
                 {/* 左侧设置面板 */}
-                <div className="w-80 shrink-0 flex flex-col gap-3 p-4 border-r overflow-y-auto custom-scrollbar"
-                     style={{borderColor: alpha('#ffffff', 0.06), background: alpha('#ffffff', 0.02)}}>
+                <div
+                    className="w-80 shrink-0 flex flex-col gap-3 p-4 border-r border-white/6 bg-white/2 overflow-y-auto custom-scrollbar">
                     {/* 过滤器分区 */}
-                    <div className="rounded-xl border p-3"
-                         style={{borderColor: alpha('#ffffff', 0.08), background: alpha('#ffffff', 0.02)}}>
+                    <div className="rounded-xl border border-white/8 bg-white/2 p-3">
                         <div className="flex items-center gap-2 mb-3">
                             <div className="w-2 h-2 rounded-full bg-linear-to-r from-blue-400 to-purple-500"></div>
-                            <Typography variant="caption" sx={{
-                                color: alpha('#ffffff', 0.7),
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.5
-                            }}>
+                            <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">
                                 {t('snapshot.filterKind')}
-                            </Typography>
+                            </span>
                         </div>
                         <div className="space-y-1.5">
                             {(['all', 'added', 'removed', 'grown', 'shrunk'] as const).map((k) => (
@@ -296,21 +272,18 @@ export const SnapshotAnalysisView: React.FC = () => {
                                         className="w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200 hover:scale-[1.02]"
                                         style={{
                                             background: filterKind === k
-                                                ? `linear-gradient(135deg, ${alpha(k === 'all' ? '#ffffff' : KIND_COLORS[k], 0.15)} 0%, ${alpha(k === 'all' ? '#ffffff' : KIND_COLORS[k], 0.08)} 100%)`
+                                                ? `linear-gradient(135deg, ${k === 'all' ? 'rgba(255,255,255,0.15)' : `${KIND_COLORS[k]}26`} 0%, ${k === 'all' ? 'rgba(255,255,255,0.08)' : `${KIND_COLORS[k]}14`} 100%)`
                                                 : 'transparent',
-                                            color: filterKind === k ? (k === 'all' ? 'white' : KIND_COLORS[k]) : alpha('#ffffff', 0.6),
-                                            border: `1px solid ${filterKind === k ? alpha(k === 'all' ? '#ffffff' : KIND_COLORS[k], 0.25) : alpha('#ffffff', 0.05)}`,
-                                            boxShadow: filterKind === k ? `0 2px 8px ${alpha(k === 'all' ? '#ffffff' : KIND_COLORS[k], 0.1)}` : 'none',
+                                            color: filterKind === k ? (k === 'all' ? 'white' : KIND_COLORS[k]) : 'rgba(255,255,255,0.6)',
+                                            border: `1px solid ${filterKind === k ? (k === 'all' ? 'rgba(255,255,255,0.25)' : `${KIND_COLORS[k]}40`) : 'rgba(255,255,255,0.05)'}`,
+                                            boxShadow: filterKind === k ? `0 2px 8px ${k === 'all' ? 'rgba(255,255,255,0.1)' : `${KIND_COLORS[k]}1a`}` : 'none',
                                         }}>
                                     <div className="flex items-center justify-between">
                                         <span
                                             className="font-medium">{k === 'all' ? t('snapshot.allChanges') : t(`snapshot.kind.${k}`)}</span>
-                                        <span className="text-xs px-1.5 py-0.5 rounded-full" style={{
-                                            background: alpha('#ffffff', 0.1),
-                                            color: alpha('#ffffff', 0.7)
-                                        }}>
-                      {k === 'all' ? entries.length : entries.filter(e => e.kind === k).length}
-                    </span>
+                                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-white/10 text-white/70">
+                                            {k === 'all' ? entries.length : entries.filter(e => e.kind === k).length}
+                                        </span>
                                     </div>
                                 </button>
                             ))}
@@ -318,18 +291,12 @@ export const SnapshotAnalysisView: React.FC = () => {
                     </div>
 
                     {/* 显示选项分区 */}
-                    <div className="rounded-xl border p-3"
-                         style={{borderColor: alpha('#ffffff', 0.08), background: alpha('#ffffff', 0.02)}}>
+                    <div className="rounded-xl border border-white/8 bg-white/2 p-3">
                         <div className="flex items-center gap-2 mb-3">
                             <div className="w-2 h-2 rounded-full bg-linear-to-r from-emerald-400 to-blue-500"></div>
-                            <Typography variant="caption" sx={{
-                                color: alpha('#ffffff', 0.7),
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.5
-                            }}>
+                            <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">
                                 {t('snapshot.displayOptions')}
-                            </Typography>
+                            </span>
                         </div>
                         <div className="space-y-3">
                             <FormControlLabel
@@ -338,35 +305,17 @@ export const SnapshotAnalysisView: React.FC = () => {
                                         checked={showFilesOnly}
                                         onChange={(e) => setShowFilesOnly(e.target.checked)}
                                         size="small"
-                                        sx={{
-                                            '& .MuiSwitch-thumb': {bgcolor: '#a78bfa'},
-                                            '& .Mui-checked + .MuiSwitch-track': {bgcolor: alpha('#8b5cf6', 0.5)},
-                                            '& .MuiSwitch-track': {bgcolor: alpha('#ffffff', 0.1)}
-                                        }}
                                     />
                                 }
-                                label={<Typography variant="caption" sx={{
-                                    color: alpha('#ffffff', 0.7),
-                                    fontWeight: 500
-                                }}>{t('snapshot.filesOnly')}</Typography>}
+                                label={<span
+                                    className="text-xs text-white/70 font-medium">{t('snapshot.filesOnly')}</span>}
                             />
 
                             <FormControl size="small" fullWidth>
-                                <Typography variant="caption" sx={{
-                                    color: alpha('#ffffff', 0.6),
-                                    mb: 0.5,
-                                    display: 'block'
-                                }}>{t('snapshot.groupOptions')}</Typography>
+                                <span className="text-xs text-white/60 mb-1 block">{t('snapshot.groupOptions')}</span>
                                 <Select
                                     value={groupBy}
                                     onChange={(e) => setGroupBy(e.target.value as SnapshotGroupBy)}
-                                    sx={{
-                                        color: alpha('#ffffff', 0.8),
-                                        fontSize: 12,
-                                        bgcolor: alpha('#ffffff', 0.02),
-                                        '& fieldset': {borderColor: alpha('#ffffff', 0.1)},
-                                        '&:hover fieldset': {borderColor: alpha('#ffffff', 0.2)}
-                                    }}
                                 >
                                     <MenuItem value="none">{t('snapshot.groupByNone')}</MenuItem>
                                     <MenuItem value="type">{t('snapshot.groupByType')}</MenuItem>
@@ -380,42 +329,28 @@ export const SnapshotAnalysisView: React.FC = () => {
                                             checked={flatGrouping}
                                             onChange={(e) => setFlatGrouping(e.target.checked)}
                                             size="small"
-                                            sx={{
-                                                '& .MuiSwitch-thumb': {bgcolor: '#a78bfa'},
-                                                '& .Mui-checked + .MuiSwitch-track': {bgcolor: alpha('#8b5cf6', 0.5)},
-                                                '& .MuiSwitch-track': {bgcolor: alpha('#ffffff', 0.1)}
-                                            }}
                                         />
                                     }
-                                    label={<Typography variant="caption" sx={{
-                                        color: alpha('#ffffff', 0.7),
-                                        fontWeight: 500
-                                    }}>{t('snapshot.flatGrouping')}</Typography>}
+                                    label={<span
+                                        className="text-xs text-white/70 font-medium">{t('snapshot.flatGrouping')}</span>}
                                 />
                             )}
                         </div>
                     </div>
 
                     {/* Top N 设置分区 */}
-                    <div className="rounded-xl border p-3"
-                         style={{borderColor: alpha('#ffffff', 0.08), background: alpha('#ffffff', 0.02)}}>
+                    <div className="rounded-xl border border-white/8 bg-white/2 p-3">
                         <div className="flex items-center gap-2 mb-3">
                             <div className="w-2 h-2 rounded-full bg-linear-to-r from-orange-400 to-red-500"></div>
-                            <Typography variant="caption" sx={{
-                                color: alpha('#ffffff', 0.7),
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.5
-                            }}>
+                            <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">
                                 {t('snapshot.topN')}
-                            </Typography>
+                            </span>
                         </div>
                         <div className="space-y-3">
                             <div>
-                                <Typography variant="caption"
-                                            sx={{color: alpha('#ffffff', 0.6), mb: 1, display: 'block'}}>
+                                <span className="text-xs text-white/60 mb-2 block">
                                     {t('snapshot.topNDesc', {n: topNCount})}
-                                </Typography>
+                                </span>
                                 <Slider
                                     value={topNCount}
                                     onChange={(_, v) => setTopNCount(v as number)}
@@ -423,39 +358,28 @@ export const SnapshotAnalysisView: React.FC = () => {
                                     max={50}
                                     step={1}
                                     size="small"
-                                    sx={{
-                                        color: '#a78bfa',
-                                        '& .MuiSlider-thumb': {bgcolor: '#a78bfa'},
-                                        '& .MuiSlider-track': {bgcolor: '#8b5cf6'},
-                                        '& .MuiSlider-rail': {bgcolor: alpha('#ffffff', 0.1)}
-                                    }}
+                                    sx={{color: '#a78bfa'}}
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* 历史数据分区 */}
-                    <div className="rounded-xl border p-3"
-                         style={{borderColor: alpha('#ffffff', 0.08), background: alpha('#ffffff', 0.02)}}>
+                    <div className="rounded-xl border border-white/8 bg-white/2 p-3">
                         <div className="flex items-center gap-2 mb-3">
                             <div className="w-2 h-2 rounded-full bg-linear-to-r from-purple-400 to-pink-500"></div>
-                            <Typography variant="caption" sx={{
-                                color: alpha('#ffffff', 0.7),
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.5
-                            }}>
+                            <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">
                                 {t('snapshot.historyData')}
-                            </Typography>
+                            </span>
                         </div>
                         <button
                             onClick={handleLoadHistory}
                             disabled={historyLoaded || historyLoading}
                             className="w-full px-3 py-2 rounded-lg text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100"
                             style={{
-                                background: historyLoaded ? alpha('#22c55e', 0.15) : alpha('#8b5cf6', 0.15),
+                                background: historyLoaded ? 'rgba(34,197,94,0.15)' : 'rgba(139,92,246,0.15)',
                                 color: historyLoaded ? '#22c55e' : '#a78bfa',
-                                border: `1px solid ${historyLoaded ? alpha('#22c55e', 0.25) : alpha('#8b5cf6', 0.25)}`,
+                                border: `1px solid ${historyLoaded ? 'rgba(34,197,94,0.25)' : 'rgba(139,92,246,0.25)'}`,
                                 opacity: historyLoading ? 0.6 : 1,
                                 cursor: historyLoaded || historyLoading ? 'default' : 'pointer',
                             }}
@@ -464,14 +388,9 @@ export const SnapshotAnalysisView: React.FC = () => {
                             {historyLoading ? t('snapshot.historyLoading') : historyLoaded ? t('snapshot.historyLoaded') : t('snapshot.loadHistory')}
                         </button>
                         {historyLoaded && (
-                            <Typography variant="caption" sx={{
-                                display: 'block',
-                                mt: 1,
-                                color: alpha('#22c55e', 0.8),
-                                textAlign: 'center'
-                            }}>
+                            <span className="block mt-2 text-xs text-green-400/80 text-center">
                                 {t('snapshot.historyLoadedDesc', {count: historySnapshots.length})}
-                            </Typography>
+                            </span>
                         )}
                     </div>
                 </div>
@@ -497,9 +416,11 @@ export const SnapshotAnalysisView: React.FC = () => {
                         className="flex-none min-h-150 flex flex-col rounded-xl overflow-hidden border border-white/6 bg-white/2">
                         <Tabs value={bottomTab} onChange={(_e, v) => setBottomTab(v)}
                               sx={{
-                                  minHeight: 44, borderBottom: `1px solid ${alpha('#ffffff', 0.08)}`, flexShrink: 0,
+                                  minHeight: 44,
+                                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                                  flexShrink: 0,
                                   '& .MuiTab-root': {
-                                      color: alpha('#ffffff', 0.5),
+                                      color: 'rgba(255,255,255,0.5)',
                                       minHeight: 44,
                                       fontSize: 13,
                                       textTransform: 'none',
@@ -544,7 +465,6 @@ export const SnapshotAnalysisView: React.FC = () => {
                 />
             )}
 
-            <style>{`.custom-scrollbar::-webkit-scrollbar { width: 0px; background: transparent; }`}</style>
         </div>
     );
 };

@@ -32,14 +32,14 @@ export const DiskSelector: React.FC<DiskSelectorProps> = ({onSelect}) => {
                 setCpuCount(cpus);
 
                 const infoMap = new Map<string, DiskInfo>();
-                for (const drive of driveList) {
-                    try {
-                        const info = await getDiskInfo(drive);
-                        infoMap.set(drive, info);
-                    } catch (err) {
-                        console.error(`Failed to get info for ${drive}:`, err);
+                const results = await Promise.allSettled(driveList.map(drive => getDiskInfo(drive)));
+                results.forEach((result, i) => {
+                    if (result.status === 'fulfilled') {
+                        infoMap.set(driveList[i], result.value);
+                    } else {
+                        console.error(`Failed to get info for ${driveList[i]}:`, result.reason);
                     }
-                }
+                });
                 setDiskInfos(infoMap);
             } catch (err) {
                 console.error('Failed to load drives:', err);

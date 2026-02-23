@@ -1,5 +1,5 @@
 import React, {useMemo} from 'react';
-import {alpha, Chip, Typography} from '@mui/material';
+import {Chip} from '@mui/material';
 import {useTranslation} from 'react-i18next';
 import type {DiffEntry, SnapshotGroupBy} from '../../types';
 import {KIND_BG, KIND_COLORS} from '../../constants';
@@ -52,7 +52,7 @@ export const DiffBarChart: React.FC<DiffBarChartProps> = ({
     if (!topEntries.length) {
         return (
             <div className="flex items-center justify-center h-full">
-                <Typography sx={{color: alpha('#ffffff', 0.4)}}>{t('snapshot.noDiff')}</Typography>
+                <span className="text-sm text-white/40">{t('snapshot.noDiff')}</span>
             </div>
         );
     }
@@ -61,9 +61,7 @@ export const DiffBarChart: React.FC<DiffBarChartProps> = ({
 
     return (
         <div className="w-full h-full flex flex-col overflow-hidden p-4 gap-2">
-            <Typography variant="caption" sx={{color: alpha('#ffffff', 0.4), mb: 1}}>
-                {t('snapshot.topNDesc', {n: topN})}
-            </Typography>
+            <span className="text-xs text-white/40 mb-1 block">{t('snapshot.topNDesc', {n: topN})}</span>
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
                 {topEntries.map((entry) => {
                     const ratio = Math.abs(entry.size_delta) / maxAbs;
@@ -71,16 +69,10 @@ export const DiffBarChart: React.FC<DiffBarChartProps> = ({
                     return (
                         <div key={entry.path} className="flex items-center gap-3">
                             <div className="w-36 shrink-0 flex items-center gap-1 min-w-0">
-                <span style={{fontSize: 11, color: alpha('#ffffff', 0.5)}}>
-                  {entry.is_dir ? '📁' : '📄'}
-                </span>
-                                <span className="text-xs truncate" style={{color: alpha('#ffffff', 0.8)}}
-                                      title={entry.path}>
-                  {entry.name}
-                </span>
+                                <span className="text-[11px] text-white/50">{entry.is_dir ? '📁' : '📄'}</span>
+                                <span className="text-xs truncate text-white/80" title={entry.path}>{entry.name}</span>
                             </div>
-                            <div className="flex-1 relative h-6 rounded overflow-hidden"
-                                 style={{background: alpha('#ffffff', 0.06)}}>
+                            <div className="flex-1 relative h-6 rounded overflow-hidden bg-white/6">
                                 <div className="absolute left-0 top-0 h-full rounded transition-all"
                                      style={{
                                          width: `${Math.max(ratio * 100, 2)}%`,
@@ -92,16 +84,16 @@ export const DiffBarChart: React.FC<DiffBarChartProps> = ({
                   {entry.size_delta >= 0 ? '+' : ''}{formatBytes(Math.abs(entry.size_delta))}
                 </span>
                             </div>
-                            <Chip label={t(`snapshot.kind.${entry.kind}`)} size="small"
-                                  sx={{
-                                      height: 18,
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      flexShrink: 0,
-                                      bgcolor: KIND_BG[entry.kind],
-                                      color: KIND_COLORS[entry.kind],
-                                      border: `1px solid ${alpha(KIND_COLORS[entry.kind], 0.3)}`
-                                  }}/>
+                            <Chip
+                                label={t(`snapshot.kind.${entry.kind}`)}
+                                size="small"
+                                sx={{
+                                    flexShrink: 0,
+                                    bgcolor: KIND_BG[entry.kind],
+                                    color: KIND_COLORS[entry.kind],
+                                    border: `1px solid ${KIND_COLORS[entry.kind]}4d`,
+                                }}
+                            />
                         </div>
                     );
                 })}

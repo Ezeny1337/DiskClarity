@@ -147,8 +147,9 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
                             .map(|c| u16::from_le_bytes([c[0], c[1]]))
                             .collect();
                         let current_name = String::from_utf16_lossy(&units);
-                        // Win32 长文件名：长度 > 8 且不含短名称波浪号
-                        let is_win32 = name_len > 8 && !current_name.contains('~');
+                        // namespace 字节：0=POSIX, 1=Win32, 2=DOS, 3=Win32&DOS
+                        let namespace = record_bytes.get(base + 65).copied().unwrap_or(0);
+                        let is_win32 = namespace == 1 || namespace == 3;
                         let candidate = FileNameInfo {
                             name: current_name,
                             parent_ref: current_parent_ref,

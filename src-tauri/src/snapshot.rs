@@ -63,6 +63,19 @@ pub struct DiffResult {
     pub changed_count: u64,
 }
 
+/// 校验快照 ID 只含合法字符
+fn validate_snapshot_id(id: &str) -> AppResult<()> {
+    if !id.is_empty()
+        && id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        Ok(())
+    } else {
+        Err(AppError::InvalidPath(format!("Invalid snapshot id: {id}")))
+    }
+}
+
 fn get_snapshot_dir() -> AppResult<PathBuf> {
     let appdata = std::env::var("APPDATA")
         .or_else(|_| std::env::var("HOME"))
@@ -188,6 +201,7 @@ fn load_snapshot_meta(path: &PathBuf) -> AppResult<SnapshotMeta> {
 
 /// 加载完整快照文件
 pub fn load_snapshot_by_id(id: &str) -> AppResult<(SnapshotMeta, FileNode)> {
+    validate_snapshot_id(id)?;
     let dir = get_snapshot_dir()?;
     let file_path = dir.join(format!("{id}.dcshot"));
     let file_data = std::fs::read(&file_path)?;
@@ -203,6 +217,11 @@ pub fn load_snapshot_by_id(id: &str) -> AppResult<(SnapshotMeta, FileNode)> {
             .try_into()
             .map_err(|_| AppError::Snapshot("Invalid snapshot header".to_string()))?,
     ) as usize;
+    if meta_len > 1024 * 1024 {
+        return Err(AppError::Snapshot(
+            "Snapshot metadata too large".to_string(),
+        ));
+    }
     if file_data.len() < 12 + meta_len {
         return Err(AppError::Snapshot("Truncated snapshot file".to_string()));
     }
@@ -221,6 +240,7 @@ pub fn load_snapshot_by_id(id: &str) -> AppResult<(SnapshotMeta, FileNode)> {
 }
 
 pub fn delete_snapshot(id: &str) -> AppResult<()> {
+    validate_snapshot_id(id)?;
     let dir = get_snapshot_dir()?;
     let file_path = dir.join(format!("{id}.dcshot"));
     if file_path.exists() {
@@ -261,6 +281,7 @@ fn flatten_tree<'a>(root: &'a FileNode) -> HashMap<String, &'a FileNode> {
 
 /// 迭代收集所有节点的 path -> size 映射
 pub fn get_snapshot_file_sizes(id: &str) -> AppResult<HashMap<String, u64>> {
+    validate_snapshot_id(id)?;
     let (_meta, root) = load_snapshot_by_id(id)?;
     let map = flatten_tree(&root)
         .into_iter()

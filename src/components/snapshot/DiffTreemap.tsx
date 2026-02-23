@@ -1,5 +1,4 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {alpha, Box, Typography} from '@mui/material';
 import {DiffContextMenu} from '../ui/DiffContextMenu';
 import {useTranslation} from 'react-i18next';
 import type {DiffEntry, DiffKind, SnapshotGroupBy} from '../../types';
@@ -104,11 +103,10 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
             {/* Treemap 画布 */}
             {!visibleEntries.length ? (
                 <div className="flex-1 flex items-center justify-center">
-                    <Typography sx={{color: alpha('#ffffff', 0.4)}}>{t('snapshot.noDiff')}</Typography>
+                    <span className="text-sm text-white/40">{t('snapshot.noDiff')}</span>
                 </div>
             ) : (
-                <div ref={containerRef} className="flex-1 relative overflow-hidden"
-                     style={{background: alpha('#ffffff', 0.04)}}>
+                <div ref={containerRef} className="flex-1 relative overflow-hidden bg-white/4">
                     <svg width="100%" height="100%" viewBox={`0 0 ${size.w} ${size.h}`} preserveAspectRatio="none">
                         {rects.map((r, i) => {
                             const isHov = hovered?.entry.path === r.entry.path;
@@ -121,7 +119,7 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
                                    style={{cursor: isDir ? 'pointer' : 'default'}}
                                    onContextMenu={(e) => handleRectContextMenu(e, r)}>
                                     <rect x={r.x} y={r.y} width={r.width} height={r.height}
-                                          fill={r.color} stroke={alpha('#000', 0.4)} strokeWidth={1}
+                                          fill={r.color} stroke="rgba(0,0,0,0.4)" strokeWidth={1}
                                           opacity={isHov ? 1 : 0.82} style={{transition: 'opacity 0.15s'}}
                                           onMouseEnter={(e) => {
                                               setHovered(r);
@@ -148,8 +146,8 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
                     {/* 图例 */}
                     <div className="absolute bottom-2 right-2 flex gap-2 flex-wrap">
                         {(['added', 'removed', 'grown', 'shrunk'] as DiffKind[]).map((k) => (
-                            <div key={k} className="flex items-center gap-1 px-2 py-0.5 rounded text-xs"
-                                 style={{background: alpha('#000', 0.6), color: KIND_COLORS[k]}}>
+                            <div key={k} className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-black/60"
+                                 style={{color: KIND_COLORS[k]}}>
                                 <span className="w-2 h-2 rounded-sm inline-block" style={{background: KIND_COLORS[k]}}/>
                                 {t(`snapshot.kind.${k}`)}
                             </div>
@@ -158,33 +156,22 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
 
                     {/* 工具提示 */}
                     {hovered && (
-                        <Box ref={tooltipRef} sx={{
-                            position: 'fixed', left: 0, top: 0, pointerEvents: 'none', zIndex: 99999,
-                            bgcolor: alpha('#18181b', 0.95), backdropFilter: 'blur(12px)',
-                            border: `1px solid ${alpha('#fff', 0.1)}`, borderRadius: 2,
-                            p: 1.5, maxWidth: 280, boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-                        }}>
-                            <Typography variant="body2" fontWeight="bold" sx={{
-                                color: 'white',
-                                mb: 0.5
-                            }}>{ellipsizeText(hovered.entry.name, 42)}</Typography>
-                            <Typography variant="caption" display="block"
-                                        sx={{color: KIND_COLORS[hovered.entry.kind], mb: 0.5}}>
+                        <div ref={tooltipRef}
+                             className="fixed left-0 top-0 pointer-events-none z-[99999] bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-lg p-3 max-w-[280px] shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+                            <p className="text-sm font-bold text-white mb-1">{ellipsizeText(hovered.entry.name, 42)}</p>
+                            <span className="text-xs block mb-1" style={{color: KIND_COLORS[hovered.entry.kind]}}>
                                 {t(`snapshot.kind.${hovered.entry.kind}`)}
-                                {hovered.entry.is_dir && <span style={{
-                                    color: alpha('#fff', 0.4),
-                                    marginLeft: 4
-                                }}>({t('snapshot.clickToEnter')})</span>}
-                            </Typography>
-                            {hovered.entry.size_a > 0 && <Typography variant="caption" display="block"
-                                                                     sx={{color: alpha('#fff', 0.6)}}>OLD: {formatBytes(hovered.entry.size_a)}</Typography>}
-                            {hovered.entry.size_b > 0 && <Typography variant="caption" display="block"
-                                                                     sx={{color: alpha('#fff', 0.6)}}>NEW: {formatBytes(hovered.entry.size_b)}</Typography>}
-                            <Typography variant="caption" display="block"
-                                        sx={{color: alpha('#fff', 0.8), fontWeight: 600}}>
+                                {hovered.entry.is_dir &&
+                                    <span className="text-white/40 ml-1">({t('snapshot.clickToEnter')})</span>}
+                            </span>
+                            {hovered.entry.size_a > 0 && <span
+                                className="text-xs text-white/60 block">OLD: {formatBytes(hovered.entry.size_a)}</span>}
+                            {hovered.entry.size_b > 0 && <span
+                                className="text-xs text-white/60 block">NEW: {formatBytes(hovered.entry.size_b)}</span>}
+                            <span className="text-xs text-white/80 font-semibold block">
                                 Δ {hovered.entry.size_delta >= 0 ? '+' : ''}{formatBytes(Math.abs(hovered.entry.size_delta))}
-                            </Typography>
-                        </Box>
+                            </span>
+                        </div>
                     )}
 
                     {/* 右键菜单 */}

@@ -1,5 +1,5 @@
 import React, {useMemo} from 'react';
-import {alpha, CircularProgress, Dialog, DialogContent, DialogTitle, IconButton, Typography} from '@mui/material';
+import {CircularProgress, Dialog, DialogContent, DialogTitle} from '@mui/material';
 import {TrendingUp, X} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 
@@ -96,45 +96,34 @@ export const TrendDialog: React.FC<TrendDialogProps> = ({
     const showSnapshotLabel = pointCount <= 12;
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
-                slotProps={{
-                    paper: {
-                        sx: {
-                            bgcolor: '#0f0f11',
-                            border: `1px solid ${alpha('#ffffff', 0.1)}`,
-                            borderRadius: 3,
-                            backgroundImage: 'none',
-                        }
-                    }
-                }}>
-            <DialogTitle sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1}}>
+        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+            <DialogTitle>
                 <div className="flex items-center gap-2">
                     <TrendingUp size={20} style={{color: '#a78bfa'}}/>
-                    <Typography component="span" sx={{color: 'white', fontSize: 15, fontWeight: 700}}>
-                        {t('snapshot.trendTitle')}
-                    </Typography>
+                    <span className="text-[15px] font-bold text-white">{t('snapshot.trendTitle')}</span>
                 </div>
-                <div>
-                    <Typography variant="caption" sx={{color: alpha('#ffffff', 0.4), fontFamily: 'monospace', mr: 2}}
-                                noWrap>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/40 font-mono truncate max-w-64">
                         {entryPath.replace(/\//g, '\\')}
-                    </Typography>
-                    <IconButton size="small" onClick={onClose} sx={{color: alpha('#ffffff', 0.5)}}>
+                    </span>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 rounded-md text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors"
+                    >
                         <X size={18}/>
-                    </IconButton>
+                    </button>
                 </div>
             </DialogTitle>
-            <DialogContent sx={{pt: 1}}>
+            <DialogContent>
                 {loading ? (
                     <div className="flex items-center justify-center h-64">
                         <CircularProgress sx={{color: '#a78bfa'}}/>
                     </div>
                 ) : !chartData ? (
                     <div className="flex flex-col items-center justify-center h-64 gap-3">
-                        <TrendingUp size={48} style={{color: alpha('#ffffff', 0.15)}}/>
-                        <Typography sx={{color: alpha('#ffffff', 0.4)}}>{t('snapshot.trendNoData')}</Typography>
-                        <Typography variant="caption"
-                                    sx={{color: alpha('#ffffff', 0.25)}}>{t('snapshot.trendNoDataHint')}</Typography>
+                        <TrendingUp size={48} className="text-white/15"/>
+                        <p className="text-sm text-white/40">{t('snapshot.trendNoData')}</p>
+                        <span className="text-xs text-white/25">{t('snapshot.trendNoDataHint')}</span>
                     </div>
                 ) : (
                     <div>
@@ -154,9 +143,9 @@ export const TrendDialog: React.FC<TrendDialogProps> = ({
                                 return (
                                     <g key={ratio}>
                                         <line x1={PAD.left} y1={y} x2={PAD.left + innerW} y2={y}
-                                              stroke={alpha('#ffffff', 0.06)} strokeWidth={1}/>
+                                              stroke="rgba(255,255,255,0.06)" strokeWidth={1}/>
                                         <text x={PAD.left - 6} y={y} textAnchor="end" dominantBaseline="middle"
-                                              fill={alpha('#ffffff', 0.35)} fontSize={11}>{fmtBytes(val)}</text>
+                                              fill="rgba(255,255,255,0.35)" fontSize={11}>{fmtBytes(val)}</text>
                                     </g>
                                 );
                             })}
@@ -172,13 +161,13 @@ export const TrendDialog: React.FC<TrendDialogProps> = ({
                                     {/* X 轴标签 */}
                                     {showXAxisDate && chartData.dateVisible[i] && (
                                         <text x={p.cx} y={PAD.top + innerH + 32} textAnchor="middle"
-                                              fill={alpha('#ffffff', 0.35)} fontSize={9.5}>
+                                              fill="rgba(255,255,255,0.35)" fontSize={9.5}>
                                             {formatDate(p.createdAt, !useMonthDayOnly)}
                                         </text>
                                     )}
                                     {showSnapshotLabel && p.label && (
                                         <text x={p.cx} y={PAD.top + innerH + 45} textAnchor="middle"
-                                              fill={alpha('#ffffff', 0.25)} fontSize={8}>
+                                              fill="rgba(255,255,255,0.25)" fontSize={8}>
                                             {p.label.length > 6 ? p.label.slice(0, 6) + '…' : p.label}
                                         </text>
                                     )}
@@ -186,25 +175,19 @@ export const TrendDialog: React.FC<TrendDialogProps> = ({
                             ))}
                             {/* 轴线 */}
                             <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + innerH}
-                                  stroke={alpha('#ffffff', 0.15)} strokeWidth={1}/>
+                                  stroke="rgba(255,255,255,0.15)" strokeWidth={1}/>
                             <line x1={PAD.left} y1={PAD.top + innerH} x2={PAD.left + innerW} y2={PAD.top + innerH}
-                                  stroke={alpha('#ffffff', 0.15)} strokeWidth={1}/>
+                                  stroke="rgba(255,255,255,0.15)" strokeWidth={1}/>
                         </svg>
                         {/* 数据点列表 */}
                         <div className="mt-4 space-y-1">
                             {chartData.sorted.map((p, i) => (
-                                <div key={i} className="flex items-center gap-3 text-xs px-2 py-1 rounded"
-                                     style={{background: alpha('#ffffff', 0.03)}}>
-                                    <span style={{
-                                        color: alpha('#ffffff', 0.35),
-                                        minWidth: 180
-                                    }}>{formatDateTime(p.createdAt)}</span>
-                                    <span style={{
-                                        color: '#a78bfa',
-                                        fontWeight: 600,
-                                        minWidth: 70
-                                    }}>{fmtBytes(p.size)}</span>
-                                    {p.label && <span style={{color: alpha('#ffffff', 0.5)}}>{p.label}</span>}
+                                <div key={i} className="flex items-center gap-3 text-xs px-2 py-1 rounded bg-white/3">
+                                    <span className="text-white/35"
+                                          style={{minWidth: 180}}>{formatDateTime(p.createdAt)}</span>
+                                    <span className="text-violet-400 font-semibold"
+                                          style={{minWidth: 70}}>{fmtBytes(p.size)}</span>
+                                    {p.label && <span className="text-white/50">{p.label}</span>}
                                 </div>
                             ))}
                         </div>

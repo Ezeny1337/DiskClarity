@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {alpha, Box, Chip, Menu, MenuItem, Paper, Typography} from '@mui/material';
+import {Chip, Menu, MenuItem} from '@mui/material';
 import {useTranslation} from 'react-i18next';
 import type {FileNode} from '../types';
 import {useTabStore} from '../store/tabStore';
@@ -195,40 +195,18 @@ export const TreemapView: React.FC = () => {
 
     if (!displayNode) {
         return (
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 3,
-                    mb: 3,
-                    height: '600px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: alpha('#ffffff', 0.15),
-                    backdropFilter: 'blur(10px)',
-                    border: `1px solid ${alpha('#ffffff', 0.2)}`,
-                    borderRadius: 2,
-                }}
-            >
-                <Typography variant="h6" sx={{color: alpha('#ffffff', 0.7)}}>
-                    {t('treemapView.noData')}
-                </Typography>
-            </Paper>
+            <div
+                className="h-full flex items-center justify-center bg-white/15 backdrop-blur-sm border border-white/20 rounded-lg">
+                <span className="text-lg text-white/70">{t('treemapView.noData')}</span>
+            </div>
         );
     }
 
     return (
         <div className="w-full h-full flex flex-col rounded-xl p-2 relative">
             {/* 面包屑导航 */}
-            <Box sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 1,
-                flexWrap: 'wrap',
-                mb: 1
-            }}>
-                <Box sx={{flex: 1, minWidth: 0}}>
+            <div className="flex items-center justify-between gap-1 flex-wrap mb-1">
+                <div className="flex-1 min-w-0">
                     <PathBreadcrumb
                         crumbs={isVirtualDisplay
                             ? (displayBreadcrumbs as { label: string; path: string }[])
@@ -248,34 +226,25 @@ export const TreemapView: React.FC = () => {
                         currentPath={displayNode?.path && !displayNode.path.startsWith('__group__:') ? displayNode.path : undefined}
                         rootLabel={driveLabel}
                     />
-                </Box>
+                </div>
 
                 {displayNode && (
                     <Chip
                         label={`${formatBytes(displayNode.size || 0)} | ${(displayNode.file_count || 0).toLocaleString()} ${t('treemapView.files')}`}
                         size="small"
                         sx={{
-                            background: alpha('#ffffff', 0.2),
+                            bgcolor: 'rgba(255,255,255,0.2)',
                             color: 'white',
-                            border: `1px solid ${alpha('#ffffff', 0.3)}`,
+                            border: '1px solid rgba(255,255,255,0.3)'
                         }}
                     />
                 )}
-            </Box>
+            </div>
 
             {/* 树状图可视化 */}
-            <Box
+            <div
                 ref={containerRef}
-                sx={{
-                    flex: 1,
-                    width: '100%',
-                    minHeight: 0,
-                    position: 'relative',
-                    background: alpha('#ffffff', 0.1),
-                    border: `1px solid ${alpha('#ffffff', 0.2)}`,
-                    borderRadius: 1,
-                    overflow: 'hidden'
-                }}
+                className="flex-1 w-full min-h-0 relative bg-white/10 border border-white/20 rounded overflow-hidden"
             >
                 <svg
                     width="100%"
@@ -284,7 +253,7 @@ export const TreemapView: React.FC = () => {
                     preserveAspectRatio="none"
                     style={{display: 'block'}}
                 >
-                    {treemapRects.map((rect, index) => {
+                    {treemapRects.map((rect) => {
                         if (![rect.x, rect.y, rect.width, rect.height].every((v) => Number.isFinite(v)) || rect.width <= 0 || rect.height <= 0) {
                             return null;
                         }
@@ -299,14 +268,14 @@ export const TreemapView: React.FC = () => {
                         const displayName = ellipsizeText(rect.node.name, Math.max(0, maxChars));
 
                         return (
-                            <g key={`${rect.node.path}-${index}`}>
+                            <g key={rect.node.path}>
                                 <rect
                                     x={rect.x}
                                     y={rect.y}
                                     width={rect.width}
                                     height={rect.height}
                                     fill={rect.color}
-                                    stroke={alpha('#fff', 0.5)}
+                                    stroke="rgba(255,255,255,0.5)"
                                     strokeWidth={1}
                                     opacity={isHovered ? 1 : 0.85}
                                     style={{
@@ -365,51 +334,31 @@ export const TreemapView: React.FC = () => {
                         );
                     })}
                 </svg>
-            </Box>
+            </div>
 
-            <Typography variant="caption" color="text.secondary" sx={{mt: 2, display: 'block'}}>
-                {t('treemapView.clickToView')}
-            </Typography>
+            <span className="mt-2 block text-xs text-white/40">{t('treemapView.clickToView')}</span>
 
             {/* 自定义提示框 - 移到外部并使用 fixed 定位以避免被裁剪 */}
             {hoveredRect && (
-                <Box
+                <div
                     ref={tooltipRef}
-                    sx={{
-                        position: 'fixed',
-                        left: 0,
-                        top: 0,
-                        bgcolor: alpha('#18181b', 0.95), // dark zinc
-                        backdropFilter: 'blur(12px)',
-                        border: `1px solid ${alpha('#fff', 0.1)}`,
-                        color: 'white',
-                        p: 1.5,
-                        borderRadius: 2,
-                        pointerEvents: 'none',
-                        zIndex: 99999,
-                        maxWidth: 300,
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-                        transform: 'translate(0px, 0px)',
-                    }}
+                    className="fixed left-0 top-0 bg-zinc-900/95 backdrop-blur-md border border-white/10 text-white p-3 rounded-lg pointer-events-none z-[99999] max-w-[300px] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
                 >
-                    <Typography variant="body2" fontWeight="bold" sx={{mb: 0.5}}>
-                        {ellipsizeText(hoveredRect.node.name, 42)}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">
-                        {t('fileList.size')}: <span style={{color: '#fff'}}>{formatBytes(hoveredRect.node.size)}</span>
-                    </Typography>
+                    <p className="text-sm font-bold mb-1">{ellipsizeText(hoveredRect.node.name, 42)}</p>
+                    <span className="text-xs text-white/60 block">
+                        {t('fileList.size')}: <span className="text-white">{formatBytes(hoveredRect.node.size)}</span>
+                    </span>
                     {hoveredRect.node.is_dir && (
                         <>
-                            <Typography variant="caption" display="block" color="text.secondary">
+                            <span className="text-xs text-white/60 block">
                                 {t('treemapView.fileCount', {count: hoveredRect.node.file_count || 0})}
-                            </Typography>
-                            <Typography variant="caption" display="block"
-                                        sx={{mt: 1, color: 'primary.main', fontWeight: 500}}>
+                            </span>
+                            <span className="text-xs text-blue-400 font-medium block mt-1">
                                 {t('treemapView.clickToDrillDown')}
-                            </Typography>
+                            </span>
                         </>
                     )}
-                </Box>
+                </div>
             )}
 
             {/* 右键菜单 */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import {alpha, CircularProgress, Dialog, DialogContent, DialogTitle, IconButton, Typography,} from '@mui/material';
+import {CircularProgress, Dialog, DialogContent, DialogTitle} from '@mui/material';
 import {ExternalLink, X} from 'lucide-react';
 import {openUrl} from '@tauri-apps/plugin-opener';
 import {useTranslation} from 'react-i18next';
@@ -24,65 +24,33 @@ export const ChangelogDialog: React.FC<ChangelogDialogProps> = ({
     const {t} = useTranslation();
 
     return (
-        <Dialog
-            open={open}
-            onClose={onClose}
-            maxWidth="md"
-            fullWidth
-            slotProps={{
-                paper: {
-                    sx: {
-                        bgcolor: '#0a0a0b',
-                        border: `1px solid ${alpha('#ffffff', 0.08)}`,
-                        borderRadius: 3,
-                        maxHeight: '85vh',
-                        backdropFilter: 'blur(20px)',
-                        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)',
-                    },
-                },
-            }}
+        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
+                slotProps={{paper: {sx: {maxHeight: '85vh'}}}}
         >
-            <DialogTitle
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    pb: 2, pt: 3, px: 3,
-                    borderBottom: `1px solid ${alpha('#ffffff', 0.06)}`,
-                }}
-            >
+            <DialogTitle>
                 <div className="flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-linear-to-r from-blue-400 to-purple-500"/>
-                    <Typography
-                        component="span"
-                        sx={{color: 'white', fontSize: 18, fontWeight: 600, letterSpacing: '-0.025em'}}
-                    >
+                    <span className="text-lg font-semibold text-white tracking-tight">
                         {t('app.changelogTitle')}
-                    </Typography>
+                    </span>
                 </div>
-                <IconButton
-                    size="small"
+                <button
                     onClick={onClose}
-                    sx={{
-                        color: alpha('#ffffff', 0.4),
-                        '&:hover': {color: alpha('#ffffff', 0.7), bgcolor: alpha('#ffffff', 0.05)},
-                    }}
+                    className="p-1.5 rounded-md text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
                 >
                     <X size={18}/>
-                </IconButton>
+                </button>
             </DialogTitle>
 
-            <DialogContent sx={{pt: 3, pb: 3, px: 3}}>
+            <DialogContent>
                 {loading ? (
                     <div className="h-56 flex items-center justify-center">
-                        <CircularProgress size={26} sx={{color: '#60a5fa'}}/>
+                        <CircularProgress size={26}/>
                     </div>
                 ) : error ? (
-                    <Typography sx={{color: '#f87171', fontSize: 13}}>{error}</Typography>
+                    <p className="text-[13px] text-red-400">{error}</p>
                 ) : releases.length === 0 ? (
-                    <Typography sx={{color: alpha('#ffffff', 0.45), fontSize: 13}}>
-                        {t('app.changelogEmpty')}
-                    </Typography>
+                    <p className="text-[13px] text-white/45">{t('app.changelogEmpty')}</p>
                 ) : (
                     <div className="space-y-4">
                         {releases.map((release, index) => (
@@ -93,8 +61,8 @@ export const ChangelogDialog: React.FC<ChangelogDialogProps> = ({
                                 transition={{delay: index * 0.1, duration: 0.4}}
                                 className="rounded-xl border px-4 py-4 transition-colors hover:border-white/12 hover:bg-white/5"
                                 style={{
-                                    borderColor: alpha('#ffffff', 0.06),
-                                    background: `linear-gradient(135deg, ${alpha('#ffffff', 0.03)} 0%, ${alpha('#ffffff', 0.01)} 100%)`,
+                                    borderColor: 'rgba(255,255,255,0.06)',
+                                    background: 'linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
                                 }}
                             >
                                 <div className="flex items-start justify-between gap-4 mb-3">
@@ -102,30 +70,18 @@ export const ChangelogDialog: React.FC<ChangelogDialogProps> = ({
                                         <div className="flex items-center gap-2 mb-1">
                                             <div
                                                 className="w-1.5 h-1.5 rounded-full bg-linear-to-r from-emerald-400 to-blue-500"/>
-                                            <Typography sx={{
-                                                color: '#e2e8f0',
-                                                fontSize: 15,
-                                                fontWeight: 600,
-                                                letterSpacing: '-0.01em'
-                                            }}>
+                                            <span className="text-[15px] font-semibold text-slate-200 tracking-tight">
                                                 {release.name || release.tag_name}
-                                            </Typography>
+                                            </span>
                                         </div>
-                                        <Typography
-                                            sx={{
-                                                color: alpha('#ffffff', 0.45),
-                                                fontSize: 12,
-                                                fontFamily: 'ui-monospace, monospace',
-                                                pl: 2.5,
-                                            }}
-                                        >
+                                        <span className="text-xs text-white/45 font-mono pl-2.5 block">
                                             {release.published_at
                                                 ? new Date(release.published_at).toLocaleString(undefined, {
                                                     year: 'numeric', month: 'short', day: '2-digit',
                                                     hour: '2-digit', minute: '2-digit', hour12: false,
                                                 })
                                                 : release.tag_name}
-                                        </Typography>
+                                        </span>
                                     </div>
 
                                     {release.html_url && (
@@ -143,9 +99,8 @@ export const ChangelogDialog: React.FC<ChangelogDialogProps> = ({
                                     <div
                                         className="absolute left-0 top-0 bottom-0 w-px bg-linear-to-b from-transparent via-white/10 to-transparent"/>
                                     <pre
-                                        className="whitespace-pre-wrap break-words text-sm leading-relaxed m-0 pl-3"
-                                        style={{color: alpha('#ffffff', 0.75), fontFamily: 'inherit'}}
-                                    >
+                                        className="whitespace-pre-wrap break-words text-sm leading-relaxed m-0 pl-3 text-white/75"
+                                        style={{fontFamily: 'inherit'}}>
                     {release.body?.trim() || t('app.changelogNoNotes')}
                   </pre>
                                 </div>
