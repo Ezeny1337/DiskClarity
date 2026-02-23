@@ -71,8 +71,10 @@ pub fn build_tree(entries: Vec<MftEntry>, root_path: &str) -> AppResult<FileNode
         },
     );
 
-    build_node_recursive(&entry_map, &children_map, ROOT_REF)
-        .ok_or_else(|| AppError::Ntfs("Failed to build root node".to_string()))
+    let root_node = build_node_recursive(&entry_map, &children_map, ROOT_REF);
+    drop(entry_map);
+    drop(children_map);
+    root_node.ok_or_else(|| AppError::Ntfs("Failed to build root node".to_string()))
 }
 
 /// 递归构建 FileNode 树，深度优先，自底向上聚合

@@ -154,66 +154,105 @@ pub fn get_volume_info_from_boot_sector(drive: &str) -> AppResult<NtfsVolumeInfo
     })
 }
 
+/// 扇区对齐读取，直接写入 out 的预留空间
+#[cfg(windows)]
+fn read_aligned_direct(
+    h: &OwnedHandle,
+    byte_offset: u64,
+    byte_len: usize,
+    out: &mut Vec<u8>,
+    out_start: usize,
+    sector_size: usize,
+) -> usize {
+    use windows::Win32::Storage::FileSystem::{ReadFile, SetFilePointerEx, FILE_BEGIN};
+
+    let aligned_off = (byte_offset as usize / sector_size) * sector_size;
+    let inner_off = byte_offset as usize - aligned_off;
+    let aligned_len = (byte_len + inner_off).div_ceil(sector_size) * sector_size;
+
+    // 若对齐后大小等于 byte_len 且无内部偏移，直接读入目标切片
+    if inner_off == 0 && aligned_len == byte_len && out_start + byte_len <= out.len() {
+        let mut n = 0u32;
+        unsafe {
+            if SetFilePointerEx(**h, aligned_off as i64, None, FILE_BEGIN).is_err() {
+                return 0;
+            }
+            let slice = &mut out[out_start..out_start + byte_len];
+            if ReadFile(**h, Some(slice), Some(&mut n), None).is_err() {
+                return 0;
+            }
+        }
+        return n as usize;
+    }
+
+    // 需要对齐缓冲：分配临时 buf，但只在有内部偏移或尾部填充时才需要
+    let mut buf = vec![0u8; aligned_len];
+    let mut n = 0u32;
+    unsafe {
+        if SetFilePointerEx(**h, aligned_off as i64, None, FILE_BEGIN).is_err() {
+            return 0;
+        }
+        if ReadFile(**h, Some(&mut buf), Some(&mut n), None).is_err() {
+            return 0;
+        }
+    }
+    let to_copy = (n as usize).saturating_sub(inner_off).min(byte_len);
+    if out_start + to_copy <= out.len() {
+        out[out_start..out_start + to_copy].copy_from_slice(&buf[inner_off..inner_off + to_copy]);
+    }
+    to_copy
+}
+
 /// 读取完整的原始 MFT 数据
 #[cfg(windows)]
 pub fn read_mft_raw(drive: &str, vol_info: &NtfsVolumeInfo) -> AppResult<Vec<u8>> {
-    use windows::Win32::Storage::FileSystem::{ReadFile, SetFilePointerEx, FILE_BEGIN};
-
     let handle = open_volume_handle(drive, false)?;
-    let sector_size = vol_info.bytes_per_sector;
-
-    // 扇区对齐读取，直接将有效数据 extend 到目标 Vec
-    let read_aligned_into =
-        |h: &OwnedHandle, byte_offset: u64, byte_len: u64, out: &mut Vec<u8>| -> bool {
-            let aligned_off = (byte_offset / sector_size) * sector_size;
-            let inner_off = (byte_offset - aligned_off) as usize;
-            let aligned_len = (byte_len as usize + inner_off).div_ceil(sector_size as usize)
-                * sector_size as usize;
-
-            let mut buf = vec![0u8; aligned_len];
-            let mut n = 0u32;
-            unsafe {
-                if SetFilePointerEx(**h, aligned_off as i64, None, FILE_BEGIN).is_err() {
-                    return false;
-                }
-                if ReadFile(**h, Some(&mut buf), Some(&mut n), None).is_err() {
-                    return false;
-                }
-            }
-            let valid = buf.get(inner_off..).map(|s| s.len()).unwrap_or(0);
-            let to_copy = valid.min(byte_len as usize);
-            out.extend_from_slice(&buf[inner_off..inner_off + to_copy]);
-            true
-        };
+    let sector_size = vol_info.bytes_per_sector as usize;
 
     // 读取 MFT 记录 0
     let record_size = vol_info.bytes_per_mft_record as usize;
-    let mut record0_bytes = Vec::with_capacity(record_size);
-    if !read_aligned_into(
+    let mut record0_bytes = vec![0u8; record_size];
+    let n = read_aligned_direct(
         &handle,
         vol_info.mft_start_lcn * vol_info.bytes_per_cluster,
-        vol_info.bytes_per_mft_record,
+        record_size,
         &mut record0_bytes,
-    ) || record0_bytes.len() < record_size
-    {
+        0,
+        sector_size,
+    );
+    if n < record_size {
         return Err(crate::error::AppError::Ntfs(
             "Unable to read MFT record 0".to_string(),
         ));
     }
-    record0_bytes.truncate(record_size);
 
     let mft_size = get_mft_size_from_record0(&record0_bytes)?;
     let data_runs = parse_data_runs_from_record0(&record0_bytes)?;
+    drop(record0_bytes);
 
-    let mut mft_data = Vec::with_capacity(mft_size as usize);
+    // 预分配目标缓冲区，逐个 Run 直接写入
+    let mut mft_data = vec![0u8; mft_size as usize];
+    let mut write_pos: usize = 0;
 
     for run in &data_runs {
+        if write_pos >= mft_size as usize {
+            break;
+        }
         let frag_off = run.start_cluster * vol_info.bytes_per_cluster;
-        let frag_size = run.cluster_count * vol_info.bytes_per_cluster;
-        read_aligned_into(&handle, frag_off, frag_size, &mut mft_data);
+        let frag_size = (run.cluster_count * vol_info.bytes_per_cluster) as usize;
+        let to_read = frag_size.min(mft_size as usize - write_pos);
+        let written = read_aligned_direct(
+            &handle,
+            frag_off,
+            to_read,
+            &mut mft_data,
+            write_pos,
+            sector_size,
+        );
+        write_pos += written;
     }
 
-    mft_data.truncate(mft_size as usize);
+    mft_data.truncate(write_pos.min(mft_size as usize));
     Ok(mft_data)
 }
 

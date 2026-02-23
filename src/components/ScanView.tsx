@@ -71,9 +71,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                 });
                 const compressed = new Uint8Array(buffer);
                 rawDataRef.current = compressed;
-                if (tabId) updateTabData(tabId, {rawScanData: compressed});
-                const decompressed = ungzip(compressed);
-                const result = decode(decompressed) as import('../types').FileNode;
+                const result = (() => decode(ungzip(compressed)))() as import('../types').FileNode;
 
                 // 迭代重建路径
                 const stack: Array<{ node: any; parentPath: string }> = [{node: result, parentPath: ''}];
@@ -110,6 +108,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                     groupBy: 'none',
                     flatGrouping: false,
                     breadcrumbs: [],
+                    rawScanData: null,
                 });
             } catch (err) {
                 if (tabId) updateTabData(tabId, {
@@ -207,11 +206,6 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
     }
 
 
-    const rawScanData = activeTab?.data?.rawScanData ?? null;
-    if (rawScanData && !rawDataRef.current) {
-        rawDataRef.current = rawScanData;
-    }
-
     const handleSaveSnapshot = () => {
         if (!rawDataRef.current) return;
         setLabelInput('');
@@ -224,9 +218,17 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
         setIsSavingSnapshot(true);
         setSnapshotError(null);
         try {
-            await saveSnapshot(rawDataRef.current, drive, labelInput.trim() || undefined);
+            const scanResult = activeTab?.data?.scanResult;
+            await saveSnapshot(
+                rawDataRef.current,
+                drive,
+                labelInput.trim() || undefined,
+                scanResult?.file_count,
+                scanResult?.dir_count,
+                scanResult?.size,
+            );
             rawDataRef.current = null;
-            if (tabId) updateTabData(tabId, {snapshotSaved: true, rawScanData: null});
+            if (tabId) updateTabData(tabId, {snapshotSaved: true});
             setTimeout(() => {
                 if (tabId) updateTabData(tabId, {snapshotSaved: false});
             }, 3000);
@@ -267,7 +269,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                                 {/* 保存快照按钮 */}
                                 <button
                                     onClick={handleSaveSnapshot}
-                                    disabled={isSavingSnapshot || (!rawDataRef.current && !rawScanData) || snapshotSaved}
+                                    disabled={isSavingSnapshot || !rawDataRef.current || snapshotSaved}
                                     className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${snapshotSaved
                                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                                         : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed'

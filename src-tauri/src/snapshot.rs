@@ -1,9 +1,7 @@
 use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -90,10 +88,14 @@ fn get_snapshot_dir() -> AppResult<PathBuf> {
     Ok(dir)
 }
 
-pub fn save_snapshot(
-    root: &FileNode,
+/// 从前端传来的 gzip(msgpack(root)) 压缩数据直接保存快照
+pub fn save_snapshot_from_compressed(
+    compressed_data: &[u8],
     drive: &str,
     label: Option<String>,
+    file_count: u64,
+    dir_count: u64,
+    total_size: u64,
 ) -> AppResult<SnapshotMeta> {
     let dir = get_snapshot_dir()?;
 
@@ -108,33 +110,31 @@ pub fn save_snapshot(
         id: id.clone(),
         drive: drive.to_string(),
         created_at: now,
-        file_count: root.file_count,
-        dir_count: root.dir_count,
-        total_size: root.size,
+        file_count,
+        dir_count,
+        total_size,
         label,
     };
 
-    // 序列化元数据（不压缩，用于快速读取）
     let meta_bytes = rmp_serde::to_vec_named(&meta)?;
     let meta_len = meta_bytes.len() as u32;
 
-    let root_bytes = rmp_serde::to_vec_named(root)?;
-    let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
-    enc.write_all(&root_bytes)
-        .map_err(|e| AppError::Compression(e.to_string()))?;
-    let compressed_root = enc
-        .finish()
-        .map_err(|e| AppError::Compression(e.to_string()))?;
-
+    // 流式写入
     let file_path = dir.join(format!("{id}.dcshot"));
-    let total = DCSHOT_MAGIC.len() + 4 + meta_bytes.len() + compressed_root.len();
-    let mut file_data = Vec::with_capacity(total);
-    file_data.extend_from_slice(DCSHOT_MAGIC);
-    file_data.extend_from_slice(&meta_len.to_le_bytes());
-    file_data.extend_from_slice(&meta_bytes);
-    file_data.extend_from_slice(&compressed_root);
-
-    std::fs::write(&file_path, &file_data)?;
+    let file = std::fs::File::create(&file_path)?;
+    let mut writer = BufWriter::new(file);
+    writer
+        .write_all(DCSHOT_MAGIC)
+        .map_err(|e| AppError::Io(e.to_string()))?;
+    writer
+        .write_all(&meta_len.to_le_bytes())
+        .map_err(|e| AppError::Io(e.to_string()))?;
+    writer
+        .write_all(&meta_bytes)
+        .map_err(|e| AppError::Io(e.to_string()))?;
+    writer
+        .write_all(compressed_data)
+        .map_err(|e| AppError::Io(e.to_string()))?;
 
     Ok(meta)
 }
@@ -204,37 +204,39 @@ pub fn load_snapshot_by_id(id: &str) -> AppResult<(SnapshotMeta, FileNode)> {
     validate_snapshot_id(id)?;
     let dir = get_snapshot_dir()?;
     let file_path = dir.join(format!("{id}.dcshot"));
-    let file_data = std::fs::read(&file_path)?;
+    let file = std::fs::File::open(&file_path)?;
+    let mut reader = BufReader::new(file);
 
-    if file_data.len() < 12 || &file_data[..8] != DCSHOT_MAGIC {
+    // 读取定长头部
+    let mut header = [0u8; 12];
+    reader
+        .read_exact(&mut header)
+        .map_err(|_| AppError::Snapshot("Invalid snapshot file format".to_string()))?;
+
+    if &header[..8] != DCSHOT_MAGIC {
         return Err(AppError::Snapshot(
             "Invalid snapshot file format".to_string(),
         ));
     }
 
-    let meta_len = u32::from_le_bytes(
-        file_data[8..12]
-            .try_into()
-            .map_err(|_| AppError::Snapshot("Invalid snapshot header".to_string()))?,
-    ) as usize;
+    let meta_len = u32::from_le_bytes([header[8], header[9], header[10], header[11]]) as usize;
     if meta_len > 1024 * 1024 {
         return Err(AppError::Snapshot(
             "Snapshot metadata too large".to_string(),
         ));
     }
-    if file_data.len() < 12 + meta_len {
-        return Err(AppError::Snapshot("Truncated snapshot file".to_string()));
-    }
 
-    let meta: SnapshotMeta = rmp_serde::from_slice(&file_data[12..12 + meta_len])?;
+    let mut meta_bytes = vec![0u8; meta_len];
+    reader
+        .read_exact(&mut meta_bytes)
+        .map_err(|_| AppError::Snapshot("Truncated snapshot file".to_string()))?;
+    let meta: SnapshotMeta = rmp_serde::from_slice(&meta_bytes)?;
+    drop(meta_bytes);
 
-    let compressed_root = &file_data[12 + meta_len..];
-    let mut dec = GzDecoder::new(compressed_root);
-    let mut root_bytes = Vec::new();
-    dec.read_to_end(&mut root_bytes)
-        .map_err(|e| AppError::Compression(e.to_string()))?;
-
-    let root: FileNode = rmp_serde::from_slice(&root_bytes)?;
+    // 流式解压
+    let dec = GzDecoder::new(reader);
+    let root: FileNode =
+        rmp_serde::decode::from_read(dec).map_err(|e| AppError::Serialization(e.to_string()))?;
 
     Ok((meta, root))
 }
@@ -301,7 +303,11 @@ pub fn diff_snapshots(id_a: &str, id_b: &str) -> AppResult<DiffResult> {
         .join()
         .map_err(|_| AppError::TaskFailed("Thread panicked loading snapshot A".to_string()))??;
 
-    diff_trees(&root_a, &root_b, id_a, id_b)
+    let result = diff_trees(&root_a, &root_b, id_a, id_b);
+    // diff_trees 完成后立即释放两棵完整树
+    drop(root_a);
+    drop(root_b);
+    result
 }
 
 pub fn diff_trees(
@@ -311,7 +317,6 @@ pub fn diff_trees(
     id_b: &str,
 ) -> AppResult<DiffResult> {
     let map_a = flatten_tree(root_a);
-    let map_b = flatten_tree(root_b);
 
     let mut entries: Vec<DiffEntry> = Vec::new();
     let mut total_added_size: u64 = 0;
@@ -322,14 +327,26 @@ pub fn diff_trees(
     let mut removed_count: u64 = 0;
     let mut changed_count: u64 = 0;
 
+    // 用 HashSet 记录 B 中出现的路径，用于后续找出仅在 A 中存在的节点
     use std::collections::HashSet;
-    let mut processed_paths = HashSet::with_capacity(map_b.len());
+    let b_capacity = (root_b.file_count + root_b.dir_count + 1) as usize;
+    let mut seen_in_b: HashSet<String> = HashSet::with_capacity(b_capacity);
 
-    // 检查 B 中的所有节点
-    for (path, node_b) in &map_b {
-        processed_paths.insert(path);
+    // 迭代遍历 root_b，构建路径时复用栈
+    let mut stack: Vec<(&FileNode, usize)> = Vec::with_capacity(64);
+    let mut path_parts: Vec<&str> = Vec::with_capacity(32);
+    stack.push((root_b, 0));
 
-        if let Some(node_a) = map_a.get(path) {
+    while let Some((node_b, depth)) = stack.pop() {
+        path_parts.truncate(depth);
+        path_parts.push(&node_b.name);
+        let path = if path_parts.len() == 1 {
+            path_parts[0].to_string()
+        } else {
+            path_parts.join("\\")
+        };
+
+        if let Some(node_a) = map_a.get(&path) {
             // 两边都有 - 检查大小变化
             if node_b.size != node_a.size {
                 let delta = node_b.size as i64 - node_a.size as i64;
@@ -338,14 +355,12 @@ pub fn diff_trees(
                 } else {
                     DiffKind::Shrunk
                 };
-
                 if delta > 0 {
                     total_grown_delta += delta;
                 } else {
                     total_shrunk_delta += delta;
                 }
                 changed_count += 1;
-
                 entries.push(DiffEntry {
                     path: path.clone(),
                     name: node_b.name.clone(),
@@ -361,7 +376,6 @@ pub fn diff_trees(
             // 仅在 B 中存在 - 新增
             total_added_size += node_b.size;
             added_count += 1;
-
             entries.push(DiffEntry {
                 path: path.clone(),
                 name: node_b.name.clone(),
@@ -373,14 +387,19 @@ pub fn diff_trees(
                 modified_time_b: node_b.modified_time,
             });
         }
+
+        seen_in_b.insert(path);
+
+        for child in node_b.children.iter().rev() {
+            stack.push((child, path_parts.len()));
+        }
     }
 
-    // 只遍历 A 中未处理的路径
+    // 遍历 map_a，找出仅在 A 中存在的节点（已删除）
     for (path, node_a) in &map_a {
-        if !processed_paths.contains(path) {
+        if !seen_in_b.contains(path) {
             total_removed_size += node_a.size;
             removed_count += 1;
-
             entries.push(DiffEntry {
                 path: path.clone(),
                 name: node_a.name.clone(),
@@ -393,6 +412,8 @@ pub fn diff_trees(
             });
         }
     }
+    drop(map_a);
+    drop(seen_in_b);
 
     // 按 size_delta 绝对值降序排列
     entries.sort_by(|a, b| {

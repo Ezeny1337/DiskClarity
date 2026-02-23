@@ -35,6 +35,15 @@ export const useTabStore = create<TabState>((set, get) => ({
         const tabIndex = state.tabs.findIndex(t => t.id === tabId);
         if (tabIndex === -1) return {};
 
+        // 主动清空大对象字段
+        const closing = state.tabs[tabIndex];
+        if (closing?.data) {
+            closing.data.scanResult = undefined;
+            closing.data.currentNode = null;
+            closing.data.diffResult = null;
+            closing.data.rawScanData = null;
+        }
+
         let newTabs = state.tabs.filter(t => t.id !== tabId);
         let newActiveTabId = state.activeTabId;
 

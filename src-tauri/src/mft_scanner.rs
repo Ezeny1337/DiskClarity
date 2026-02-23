@@ -94,23 +94,27 @@ impl MftScanner {
 
         // 阶段 II: 并行解析 MFT 记录
         let record_size = vol_info.bytes_per_mft_record as usize;
-        let entries: Vec<MftEntry> = mft_data
-            .par_chunks_exact(record_size)
-            .enumerate()
-            .filter_map(|(idx, record_bytes)| {
-                if self.should_cancel.load(Ordering::Relaxed) {
-                    return None;
-                }
-                let entry = mft_parser::parse_mft_record(record_bytes, idx as u64)?;
-                if entry.is_dir {
-                    self.scanned_dirs.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    self.scanned_files.fetch_add(1, Ordering::Relaxed);
-                    self.total_size.fetch_add(entry.size, Ordering::Relaxed);
-                }
-                Some(entry)
-            })
-            .collect();
+        let entries: Vec<MftEntry> = {
+            let result = mft_data
+                .par_chunks_exact(record_size)
+                .enumerate()
+                .filter_map(|(idx, record_bytes)| {
+                    if self.should_cancel.load(Ordering::Relaxed) {
+                        return None;
+                    }
+                    let entry = mft_parser::parse_mft_record(record_bytes, idx as u64)?;
+                    if entry.is_dir {
+                        self.scanned_dirs.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        self.scanned_files.fetch_add(1, Ordering::Relaxed);
+                        self.total_size.fetch_add(entry.size, Ordering::Relaxed);
+                    }
+                    Some(entry)
+                })
+                .collect();
+            drop(mft_data); // 立即释放原始 MFT 缓冲区
+            result
+        };
 
         Ok(entries)
     }

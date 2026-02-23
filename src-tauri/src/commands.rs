@@ -3,9 +3,6 @@ use crate::mft_scanner::MftScanner;
 use crate::models::{DiskInfo, ScanConfig, ScanProgress};
 use crate::snapshot::{DiffResult, SnapshotMeta};
 use crate::ScannerState;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::io::Write;
 use std::sync::Arc;
 use tauri::State;
 use tokio::task;
@@ -62,15 +59,6 @@ fn build_agent(timeout_secs: u64) -> ureq::Agent {
     builder.build().new_agent()
 }
 
-/// 将字节切片 gzip 压缩后返回
-fn gzip_compress(data: &[u8]) -> AppResult<Vec<u8>> {
-    let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
-    enc.write_all(data)
-        .map_err(|e| AppError::Compression(e.to_string()))?;
-    enc.finish()
-        .map_err(|e| AppError::Compression(e.to_string()))
-}
-
 #[tauri::command]
 pub async fn start_scan(
     path: String,
@@ -91,9 +79,16 @@ pub async fn start_scan(
 
     let result = scan_result??;
 
-    // msgpack 序列化 + gzip 压缩，以二进制帧返回避免 JSON number[] 开销
-    let msgpack_data = rmp_serde::to_vec_named(&result)?;
-    let compressed = gzip_compress(&msgpack_data)?;
+    // 流式写入，直接将 msgpack 序列化到 GzEncoder
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
+    rmp_serde::encode::write_named(&mut enc, &result)
+        .map_err(|e| AppError::Serialization(e.to_string()))?;
+    drop(result);
+    let compressed = enc
+        .finish()
+        .map_err(|e| AppError::Compression(e.to_string()))?;
     Ok(tauri::ipc::Response::new(compressed))
 }
 
@@ -261,18 +256,14 @@ pub async fn save_snapshot(
     root_data: Vec<u8>,
     drive: String,
     label: Option<String>,
+    file_count: u64,
+    dir_count: u64,
+    total_size: u64,
 ) -> AppResult<SnapshotMeta> {
-    use flate2::read::GzDecoder;
-    use std::io::Read;
     task::spawn_blocking(move || {
-        let mut dec = GzDecoder::new(&root_data[..]);
-        let mut msgpack_data = Vec::new();
-        dec.read_to_end(&mut msgpack_data)
-            .map_err(|e| AppError::Compression(e.to_string()))?;
-
-        let root: crate::models::FileNode = rmp_serde::from_slice(&msgpack_data)?;
-
-        crate::snapshot::save_snapshot(&root, &drive, label)
+        crate::snapshot::save_snapshot_from_compressed(
+            &root_data, &drive, label, file_count, dir_count, total_size,
+        )
     })
         .await?
 }

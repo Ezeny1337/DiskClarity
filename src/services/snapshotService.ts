@@ -45,12 +45,18 @@ export interface DiffResult {
 export async function saveSnapshot(
     rootData: Uint8Array,
     drive: string,
-    label?: string
+    label?: string,
+    fileCount?: number,
+    dirCount?: number,
+    totalSize?: number,
 ): Promise<SnapshotMeta> {
     return await invoke<SnapshotMeta>('save_snapshot', {
-        rootData: Array.from(rootData),
+        rootData,
         drive,
         label: label ?? null,
+        fileCount: fileCount ?? 0,
+        dirCount: dirCount ?? 0,
+        totalSize: totalSize ?? 0,
     });
 }
 

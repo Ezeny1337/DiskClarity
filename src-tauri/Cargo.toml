@@ -1,6 +1,6 @@
 [package]
 name = "DiskClarity"
-version = "3.1.2"
+version = "3.1.3"
 description = "An efficient and lightweight disk space analysis tool"
 authors = ["Ezeny"]
 edition = "2021"
