@@ -1,7 +1,7 @@
 use crate::error::{AppError, AppResult};
 use crate::mft_scanner::MftScanner;
 use crate::models::{DiskInfo, ScanConfig, ScanProgress};
-use crate::snapshot::{DiffResult, SnapshotMeta};
+use crate::snapshot::SnapshotMeta;
 use crate::ScannerState;
 use std::sync::Arc;
 use tauri::State;
@@ -137,7 +137,7 @@ pub fn get_cpu_count() -> usize {
         .unwrap_or(1)
 }
 
-/// 当页面最小化时时设置 WebView2 内存使用目标为 Low
+/// 窗口空闲时降低 WebView2 内存目标，活跃时恢复 normal
 #[tauri::command]
 pub fn set_webview_memory_level(low: bool, window: tauri::WebviewWindow) -> AppResult<()> {
     #[cfg(windows)]
@@ -279,8 +279,10 @@ pub async fn delete_snapshot(id: String) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn diff_snapshots(id_a: String, id_b: String) -> AppResult<DiffResult> {
-    task::spawn_blocking(move || crate::snapshot::diff_snapshots(&id_a, &id_b)).await?
+pub async fn diff_snapshots(id_a: String, id_b: String) -> Result<tauri::ipc::Response, AppError> {
+    let result_bytes =
+        task::spawn_blocking(move || crate::snapshot::diff_snapshots(&id_a, &id_b)).await??;
+    Ok(tauri::ipc::Response::new(result_bytes))
 }
 
 #[tauri::command]

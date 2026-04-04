@@ -276,15 +276,21 @@ function App() {
         }
     }, [tabs, activeTabId]);
 
-    // 窗口最小化时降低 WebView2 内存占用，恢复时还原
+    // 窗口最小化 或 所有标签页均为 home 时降低 WebView2 内存目标，
+    // 通过 window.gc() 强制触发 V8 主 GC，将堆页归还 OS
     useEffect(() => {
-        const handleVisibility = () => {
-            invoke('set_webview_memory_level', {low: document.hidden}).catch(() => {
+        const updateMemoryLevel = () => {
+            const idle = document.hidden || tabs.every((t) => t.type === 'home');
+            invoke('set_webview_memory_level', {low: idle}).catch(() => {
             });
+            if (idle && typeof (window as unknown as { gc?: () => void }).gc === 'function') {
+                (window as unknown as { gc: () => void }).gc();
+            }
         };
-        document.addEventListener('visibilitychange', handleVisibility);
-        return () => document.removeEventListener('visibilitychange', handleVisibility);
-    }, []);
+        updateMemoryLevel();
+        document.addEventListener('visibilitychange', updateMemoryLevel);
+        return () => document.removeEventListener('visibilitychange', updateMemoryLevel);
+    }, [tabs]);
 
     // 禁用右键菜单
     useEffect(() => {

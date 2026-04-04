@@ -1,4 +1,12 @@
+use std::cell::RefCell;
+
 use crate::models::{FileNameInfo, MftEntry};
+
+// 每个 rayon 工作线程独享独立缓冲区
+thread_local! {
+    static FIXUP_BUF: RefCell<Vec<u8>> = RefCell::new(Vec::with_capacity(4096));
+    static UTF16_BUF: RefCell<Vec<u16>> = RefCell::new(Vec::with_capacity(512));
+}
 
 /// 从字节切片读取 u16
 #[inline(always)]
@@ -21,7 +29,7 @@ fn read_u64(buf: &[u8], offset: usize) -> Option<u64> {
         .map(|b| u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
 }
 
-/// 解析单个 MFT 记录 - 应用 Fixup Array 修复并提取属性
+/// 解析单个 MFT 记录 - 判断是否需要 fixup，复用 thread_local 缓冲区
 #[cfg(windows)]
 pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry> {
     if record_bytes.len() < 42 {
@@ -38,39 +46,48 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
     let usn_offset = read_u16(record_bytes, 0x04)? as usize;
     let usn_size = read_u16(record_bytes, 0x06)? as usize;
 
-    // 检查是否需要 fixup 修复
-    let fixup_data;
-    let record_bytes =
-        if usn_offset > 0 && usn_size > 1 && usn_offset + usn_size * 2 <= record_bytes.len() {
+    // 判断是否需要 fixup
+    let needs_fixup =
+        usn_offset > 0 && usn_size > 1 && usn_offset + usn_size * 2 <= record_bytes.len() && {
             let fixup_value = read_u16(record_bytes, usn_offset)?;
-
-            // 快速检查第一个扇区是否需要修复
             let first_sector_off = 512 - 2;
-            if first_sector_off + 2 <= record_bytes.len()
+            first_sector_off + 2 <= record_bytes.len()
                 && read_u16(record_bytes, first_sector_off) == Some(fixup_value)
-            {
-                // 需要修复，分配buffer并修复所有扇区
-                fixup_data = {
-                    let mut data = record_bytes.to_vec();
-                    for i in 1..usn_size {
-                        let sector_off = i * 512 - 2;
-                        let fixup_off = usn_offset + i * 2;
-                        if fixup_off + 1 < data.len() && sector_off + 1 < data.len() {
-                            let v = u16::from_le_bytes([data[fixup_off], data[fixup_off + 1]]);
-                            data[sector_off] = v as u8;
-                            data[sector_off + 1] = (v >> 8) as u8;
-                        }
-                    }
-                    data
-                };
-                &fixup_data
-            } else {
-                record_bytes
-            }
-        } else {
-            record_bytes
         };
 
+    if needs_fixup {
+        // 使用 thread_local 缓冲区
+        FIXUP_BUF.with(|cell| {
+            let mut buf = cell.borrow_mut();
+            buf.clear();
+            buf.extend_from_slice(record_bytes);
+
+            // 应用 Fixup Array：将每个 512B 扇区末尾的校验值替换为正确数据
+            let fixup_value = match read_u16(&buf, usn_offset) {
+                Some(v) => v,
+                None => return None,
+            };
+            let _ = fixup_value; // 仅用于校验，实际写入来自 fixup 表
+            for i in 1..usn_size {
+                let sector_off = i * 512 - 2;
+                let fixup_off = usn_offset + i * 2;
+                if fixup_off + 1 < buf.len() && sector_off + 1 < buf.len() {
+                    let v = u16::from_le_bytes([buf[fixup_off], buf[fixup_off + 1]]);
+                    buf[sector_off] = v as u8;
+                    buf[sector_off + 1] = (v >> 8) as u8;
+                }
+            }
+
+            parse_mft_record_inner(&buf, record_idx)
+        })
+    } else {
+        parse_mft_record_inner(record_bytes, record_idx)
+    }
+}
+
+/// 解析 MFT 记录的属性
+#[cfg(windows)]
+fn parse_mft_record_inner(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry> {
     // 记录标志：bit0=在用，bit1=目录，bit4=索引视图
     let flags = read_u16(record_bytes, 0x16)?;
     if (flags & 0x0001) == 0 {
@@ -142,11 +159,16 @@ pub fn parse_mft_record(record_bytes: &[u8], record_idx: u64) -> Option<MftEntry
                         && name_len <= 255
                         && name_start + name_len * 2 <= record_bytes.len()
                     {
-                        let units: Vec<u16> = record_bytes[name_start..name_start + name_len * 2]
-                            .chunks_exact(2)
-                            .map(|c| u16::from_le_bytes([c[0], c[1]]))
-                            .collect();
-                        let current_name = String::from_utf16_lossy(&units);
+                        let current_name = UTF16_BUF.with(|cell| {
+                            let mut buf = cell.borrow_mut();
+                            buf.clear();
+                            buf.extend(
+                                record_bytes[name_start..name_start + name_len * 2]
+                                    .chunks_exact(2)
+                                    .map(|c| u16::from_le_bytes([c[0], c[1]])),
+                            );
+                            String::from_utf16_lossy(&buf)
+                        });
                         // namespace 字节：0=POSIX, 1=Win32, 2=DOS, 3=Win32&DOS
                         let namespace = record_bytes.get(base + 65).copied().unwrap_or(0);
                         let is_win32 = namespace == 1 || namespace == 3;

@@ -26,14 +26,14 @@ pub struct FileNode {
     pub is_dir: bool,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub children: Vec<FileNode>,
-    pub file_count: u64,
-    pub dir_count: u64,
+    pub file_count: u32,
+    pub dir_count: u32,
     #[serde(skip_serializing_if = "is_zero", default)]
-    pub modified_time: u64,
+    pub modified_time: u32,
 }
 
 #[inline]
-fn is_zero(n: &u64) -> bool {
+fn is_zero(n: &u32) -> bool {
     *n == 0
 }
 

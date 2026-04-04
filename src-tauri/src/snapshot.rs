@@ -9,7 +9,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::FileNode;
 
 // 格式：magic(8) + meta_len(4, LE) + msgpack(meta) + gzip(msgpack(root))
-const DCSHOT_MAGIC: &[u8; 8] = b"DCSHOT02";
+const DCSHOT_MAGIC: &[u8; 8] = b"DCSHOT03";
 
 // 快照元数据（存储在列表中，不包含完整树）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,7 +43,7 @@ pub struct DiffEntry {
     pub size_a: u64,
     pub size_b: u64,
     pub size_delta: i64,
-    pub modified_time_b: u64,
+    pub modified_time_b: u32,
 }
 
 // Diff 汇总结果
@@ -253,7 +253,10 @@ pub fn delete_snapshot(id: &str) -> AppResult<()> {
 
 /// 迭代展平 FileNode 树为 path -> node 映射，优化路径字符串分配
 fn flatten_tree<'a>(root: &'a FileNode) -> HashMap<String, &'a FileNode> {
-    let capacity = (root.file_count + root.dir_count + 1) as usize;
+    // u32 相加可能溢出，取带饱和加法后转 usize
+    let capacity = (root.file_count as usize)
+        .saturating_add(root.dir_count as usize)
+        .saturating_add(1);
     let mut map = HashMap::with_capacity(capacity);
     let mut stack: Vec<(&'a FileNode, usize)> = Vec::with_capacity(64); // (node, path_depth)
     let mut path_parts: Vec<&str> = Vec::with_capacity(32); // 重用路径组件
@@ -293,7 +296,7 @@ pub fn get_snapshot_file_sizes(id: &str) -> AppResult<HashMap<String, u64>> {
 }
 
 /// 对比两个快照，返回差异结果（并行加载两个快照文件）
-pub fn diff_snapshots(id_a: &str, id_b: &str) -> AppResult<DiffResult> {
+pub fn diff_snapshots(id_a: &str, id_b: &str) -> AppResult<Vec<u8>> {
     use std::thread;
     let id_a_owned = id_a.to_string();
 
@@ -303,11 +306,23 @@ pub fn diff_snapshots(id_a: &str, id_b: &str) -> AppResult<DiffResult> {
         .join()
         .map_err(|_| AppError::TaskFailed("Thread panicked loading snapshot A".to_string()))??;
 
-    let result = diff_trees(&root_a, &root_b, id_a, id_b);
+    let result = diff_trees(&root_a, &root_b, id_a, id_b)?;
     // diff_trees 完成后立即释放两棵完整树
     drop(root_a);
     drop(root_b);
-    result
+
+    // 将 DiffResult 序列化为 MsgPack 并使用 Gzip 压缩
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    let mut enc = GzEncoder::new(Vec::new(), Compression::fast());
+    rmp_serde::encode::write_named(&mut enc, &result)
+        .map_err(|e| AppError::Serialization(e.to_string()))?;
+
+    let compressed = enc
+        .finish()
+        .map_err(|e| AppError::Compression(e.to_string()))?;
+
+    Ok(compressed)
 }
 
 pub fn diff_trees(
@@ -316,8 +331,6 @@ pub fn diff_trees(
     id_a: &str,
     id_b: &str,
 ) -> AppResult<DiffResult> {
-    let map_a = flatten_tree(root_a);
-
     let mut entries: Vec<DiffEntry> = Vec::new();
     let mut total_added_size: u64 = 0;
     let mut total_removed_size: u64 = 0;
@@ -327,93 +340,121 @@ pub fn diff_trees(
     let mut removed_count: u64 = 0;
     let mut changed_count: u64 = 0;
 
-    // 用 HashSet 记录 B 中出现的路径，用于后续找出仅在 A 中存在的节点
-    use std::collections::HashSet;
-    let b_capacity = (root_b.file_count + root_b.dir_count + 1) as usize;
-    let mut seen_in_b: HashSet<String> = HashSet::with_capacity(b_capacity);
+    // 显式栈迭代
+    // 栈帧：(node_a, node_b, 当前节点的完整相对路径)
+    let mut stack: Vec<(Option<&FileNode>, Option<&FileNode>, String)> = Vec::with_capacity(256);
+    stack.push((Some(root_a), Some(root_b), String::new()));
 
-    // 迭代遍历 root_b，构建路径时复用栈
-    let mut stack: Vec<(&FileNode, usize)> = Vec::with_capacity(64);
-    let mut path_parts: Vec<&str> = Vec::with_capacity(32);
-    stack.push((root_b, 0));
-
-    while let Some((node_b, depth)) = stack.pop() {
-        path_parts.truncate(depth);
-        path_parts.push(&node_b.name);
-        let path = if path_parts.len() == 1 {
-            path_parts[0].to_string()
-        } else {
-            path_parts.join("\\")
-        };
-
-        if let Some(node_a) = map_a.get(&path) {
-            // 两边都有 - 检查大小变化
-            if node_b.size != node_a.size {
-                let delta = node_b.size as i64 - node_a.size as i64;
-                let kind = if delta > 0 {
-                    DiffKind::Grown
-                } else {
-                    DiffKind::Shrunk
-                };
-                if delta > 0 {
-                    total_grown_delta += delta;
-                } else {
-                    total_shrunk_delta += delta;
+    while let Some((node_a, node_b, path)) = stack.pop() {
+        match (node_a, node_b) {
+            (Some(a), Some(b)) => {
+                // 两边都存在
+                if a.size != b.size && !path.is_empty() {
+                    let delta = b.size as i64 - a.size as i64;
+                    let kind = if delta > 0 {
+                        DiffKind::Grown
+                    } else {
+                        DiffKind::Shrunk
+                    };
+                    if delta > 0 {
+                        total_grown_delta += delta;
+                    } else {
+                        total_shrunk_delta += delta;
+                    }
+                    changed_count += 1;
+                    entries.push(DiffEntry {
+                        path: path.clone(),
+                        name: b.name.clone(),
+                        is_dir: b.is_dir,
+                        kind,
+                        size_a: a.size,
+                        size_b: b.size,
+                        size_delta: delta,
+                        modified_time_b: b.modified_time,
+                    });
                 }
-                changed_count += 1;
+
+                // 将子节点对压入栈
+                if a.is_dir || b.is_dir {
+                    let mut a_map: HashMap<&str, &FileNode> =
+                        HashMap::with_capacity(a.children.len());
+                    for child in &a.children {
+                        a_map.insert(child.name.as_str(), child);
+                    }
+
+                    // 遍历 b 的子节点，匹配 a 中同名节点
+                    for child_b in &b.children {
+                        let child_a = a_map.remove(child_b.name.as_str());
+                        let cp = if path.is_empty() {
+                            child_b.name.clone()
+                        } else {
+                            format!("{}\\{}", path, child_b.name)
+                        };
+                        stack.push((child_a, Some(child_b), cp));
+                    }
+
+                    // a_map 中剩余的均为已删除节点
+                    for child_a in a_map.into_values() {
+                        let cp = if path.is_empty() {
+                            child_a.name.clone()
+                        } else {
+                            format!("{}\\{}", path, child_a.name)
+                        };
+                        stack.push((Some(child_a), None, cp));
+                    }
+                }
+            }
+            (None, Some(b)) => {
+                // 仅在 B 中存在 - 新增
+                total_added_size += b.size;
+                added_count += 1;
                 entries.push(DiffEntry {
                     path: path.clone(),
-                    name: node_b.name.clone(),
-                    is_dir: node_b.is_dir,
-                    kind,
-                    size_a: node_a.size,
-                    size_b: node_b.size,
-                    size_delta: delta,
-                    modified_time_b: node_b.modified_time,
+                    name: b.name.clone(),
+                    is_dir: b.is_dir,
+                    kind: DiffKind::Added,
+                    size_a: 0,
+                    size_b: b.size,
+                    size_delta: b.size as i64,
+                    modified_time_b: b.modified_time,
                 });
+
+                for child_b in &b.children {
+                    let cp = if path.is_empty() {
+                        child_b.name.clone()
+                    } else {
+                        format!("{}\\{}", path, child_b.name)
+                    };
+                    stack.push((None, Some(child_b), cp));
+                }
             }
-        } else {
-            // 仅在 B 中存在 - 新增
-            total_added_size += node_b.size;
-            added_count += 1;
-            entries.push(DiffEntry {
-                path: path.clone(),
-                name: node_b.name.clone(),
-                is_dir: node_b.is_dir,
-                kind: DiffKind::Added,
-                size_a: 0,
-                size_b: node_b.size,
-                size_delta: node_b.size as i64,
-                modified_time_b: node_b.modified_time,
-            });
-        }
+            (Some(a), None) => {
+                // 仅在 A 中存在 - 删除
+                total_removed_size += a.size;
+                removed_count += 1;
+                entries.push(DiffEntry {
+                    path: path.clone(),
+                    name: a.name.clone(),
+                    is_dir: a.is_dir,
+                    kind: DiffKind::Removed,
+                    size_a: a.size,
+                    size_b: 0,
+                    size_delta: -(a.size as i64),
+                    modified_time_b: 0,
+                });
 
-        seen_in_b.insert(path);
-
-        for child in node_b.children.iter().rev() {
-            stack.push((child, path_parts.len()));
-        }
-    }
-
-    // 遍历 map_a，找出仅在 A 中存在的节点（已删除）
-    for (path, node_a) in &map_a {
-        if !seen_in_b.contains(path) {
-            total_removed_size += node_a.size;
-            removed_count += 1;
-            entries.push(DiffEntry {
-                path: path.clone(),
-                name: node_a.name.clone(),
-                is_dir: node_a.is_dir,
-                kind: DiffKind::Removed,
-                size_a: node_a.size,
-                size_b: 0,
-                size_delta: -(node_a.size as i64),
-                modified_time_b: 0,
-            });
+                for child_a in &a.children {
+                    let cp = if path.is_empty() {
+                        child_a.name.clone()
+                    } else {
+                        format!("{}\\{}", path, child_a.name)
+                    };
+                    stack.push((Some(child_a), None, cp));
+                }
+            }
+            (None, None) => {}
         }
     }
-    drop(map_a);
-    drop(seen_in_b);
 
     // 按 size_delta 绝对值降序排列
     entries.sort_by(|a, b| {

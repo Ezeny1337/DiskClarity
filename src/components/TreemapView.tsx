@@ -102,12 +102,13 @@ export const TreemapView: React.FC = () => {
                 : displayNode.children;
 
             // 应用分组（传递当前节点的路径，避免在分组内再次分组）
-            childrenToDisplay = groupFileNodes(childrenToDisplay, groupBy, displayNode.path, flatGrouping, tGrouping);
+            const parentPath = displayNode.path || displayNode.name;
+            childrenToDisplay = groupFileNodes(childrenToDisplay, groupBy, parentPath, flatGrouping, tGrouping);
 
             // 应用排序
             childrenToDisplay = sortGroupedNodes(childrenToDisplay, sortField, sortOrder);
 
-            return layoutFileNodeRects(childrenToDisplay, containerSize.width, containerSize.height);
+            return layoutFileNodeRects(childrenToDisplay, containerSize.width, containerSize.height, parentPath);
         }
 
         return [];

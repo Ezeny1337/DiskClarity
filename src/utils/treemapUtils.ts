@@ -202,7 +202,7 @@ export function layoutDiffRects(entries: DiffEntry[], containerWidth: number, co
 }
 
 /** 布局文件节点矩形 */
-export function layoutFileNodeRects(children: FileNode[], containerWidth: number, containerHeight: number): FileNodeRect[] {
+export function layoutFileNodeRects(children: FileNode[], containerWidth: number, containerHeight: number, parentPath?: string): FileNodeRect[] {
     if (!children || children.length === 0) return [];
     if (!Number.isFinite(containerWidth) || !Number.isFinite(containerHeight) || containerWidth <= 0 || containerHeight <= 0) return [];
 
@@ -215,7 +215,9 @@ export function layoutFileNodeRects(children: FileNode[], containerWidth: number
     const scaledChildren = sortedChildren.map(child => {
         const rawSize = Number(child.size);
         const safeSize = Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 0;
-        return {...child, scaledSize: safeSize === 0 ? 0 : Math.log10(safeSize + 1)};
+        // 如果提供了 parentPath，为其生成动态 path
+        const path = child.path || (parentPath ? `${parentPath}\\${child.name}` : child.name);
+        return {...child, path, scaledSize: safeSize === 0 ? 0 : Math.log10(safeSize + 1)};
     });
 
     const totalSize = scaledChildren.reduce((sum, c) => sum + (Number.isFinite(c.scaledSize) ? c.scaledSize : 0), 0);

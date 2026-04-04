@@ -1,4 +1,6 @@
 import {invoke} from '@tauri-apps/api/core';
+import {decode} from '@msgpack/msgpack';
+import {ungzip} from 'pako';
 
 /** 快照元数据 */
 export interface SnapshotMeta {
@@ -78,5 +80,7 @@ export async function deleteSnapshot(id: string): Promise<void> {
  * 对比两个快照
  */
 export async function diffSnapshots(idA: string, idB: string): Promise<DiffResult> {
-    return await invoke<DiffResult>('diff_snapshots', {idA, idB});
+    const buffer = await invoke<ArrayBuffer>('diff_snapshots', {idA, idB});
+    const compressed = new Uint8Array(buffer);
+    return decode(ungzip(compressed)) as DiffResult;
 }

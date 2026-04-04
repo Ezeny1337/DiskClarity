@@ -33,8 +33,9 @@ provide extremely fast scanning speed and comprehensive storage analysis.
 - **NTFS MFT Direct Parsing**: Directly read the main file table (MFT) of NTFS for fast scanning
 - **Rust-Powered Backend**: Memory-safe, zero-cost abstractions with maximum performance
 - **Parallel Processing**: Multi-threaded scanning using Rayon library
-- **Optimized Data Transfer**: Reduces frontend-backend data transfer as much as possible
-- **Allocator**: Mimalloc high-performance memory allocation reduces fragmentation
+- **Memory usage optimization**: Ultimate optimization of running memory usage, comparable to native experience.
+- **Data transmission optimization**:Minimize the amount of data transmission between the front-end and back-end as much
+  as possible
 
 **🎯 Advanced Analytics**
 
@@ -55,7 +56,6 @@ provide extremely fast scanning speed and comprehensive storage analysis.
 <img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/083a1d14-25c8-477e-9bdb-f0aaae6804ab" />
 <img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/446b53e2-7a3d-4ce3-abaf-aaae83f9c8f2" />
 <img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/07328ad4-7290-45ce-a291-8e95141eeb82" />
-
 
 ## 🧰 Installation
 

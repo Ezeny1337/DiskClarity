@@ -36,6 +36,7 @@ interface TreeItemProps {
     node: FileNode;
     level: number;
     parentSize: number;
+    parentPath?: string;
     onNavigate: (node: FileNode) => void;
     maxInitialChildren?: number;
     isExpanded?: boolean;
@@ -50,6 +51,7 @@ const TreeItem = React.memo(({
                                  node,
                                  level,
                                  parentSize,
+                                 parentPath,
                                  onNavigate,
                                  maxInitialChildren = 100,
                                  isExpanded,
@@ -69,12 +71,15 @@ const TreeItem = React.memo(({
     const hasChildren = node.is_dir && node.children && node.children.length > 0;
     const [contextMenu, setContextMenu] = useState<{ mouseX: number; mouseY: number } | null>(null);
 
+    // 动态计算当前节点的完整路径
+    const currentPath = node.path || (parentPath ? `${parentPath}\\${node.name}` : node.name);
+
     const sortedChildren = useMemo(() => {
         if (!hasChildren) return [];
         let arr = [...node.children];
-        arr = groupFileNodes(arr, groupBy, node.path, flatGrouping, tGrouping);
+        arr = groupFileNodes(arr, groupBy, currentPath, flatGrouping, tGrouping);
         return sortGroupedNodes(arr, sortField, sortOrder);
-    }, [node.children, node.path, hasChildren, groupBy, flatGrouping, sortField, sortOrder, tGrouping]);
+    }, [node.children, currentPath, hasChildren, groupBy, flatGrouping, sortField, sortOrder, tGrouping]);
 
     // 限制显示的子项数量
     const displayedChildren = sortedChildren.slice(0, displayCount);
@@ -84,12 +89,12 @@ const TreeItem = React.memo(({
         if (node.is_dir) {
             if (hasChildren) {
                 if (onToggleExpand) {
-                    onToggleExpand(node.path);
+                    onToggleExpand(currentPath);
                 } else {
                     setLocalExpanded(v => !v);
                 }
             } else {
-                onNavigate(node);
+                onNavigate({...node, path: currentPath});
             }
         }
     };
@@ -97,7 +102,7 @@ const TreeItem = React.memo(({
     const handleNavigate = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (node.is_dir) {
-            onNavigate(node);
+            onNavigate({...node, path: currentPath});
         }
     };
 
@@ -113,7 +118,7 @@ const TreeItem = React.memo(({
 
     const handleOpenInExplorer = async () => {
         try {
-            await invoke('open_in_explorer', {path: node.path});
+            await invoke('open_in_explorer', {path: currentPath});
         } catch (error) {
             updateCurrentTab({
                 data: {
@@ -193,10 +198,11 @@ const TreeItem = React.memo(({
                 <>
                     {displayedChildren.map((child) => (
                         <TreeItem
-                            key={child.path}
+                            key={child.name}
                             node={child}
                             level={level + 1}
                             parentSize={node.size}
+                            parentPath={currentPath}
                             onNavigate={onNavigate}
                             maxInitialChildren={maxInitialChildren}
                             sortField={sortField}
@@ -439,11 +445,13 @@ export const FileList: React.FC = () => {
                                 }}
                             >
                                 <TreeItem
+                                    key={child.name}
                                     node={child}
                                     level={0}
                                     parentSize={displayNode.size}
+                                    parentPath={displayNode.path}
                                     onNavigate={handleNavigate}
-                                    isExpanded={expandedPaths.has(child.path)}
+                                    isExpanded={expandedPaths.has(displayNode.path ? `${displayNode.path}\\${child.name}` : child.name)}
                                     onToggleExpand={handleToggleExpand}
                                     sortField={sortField}
                                     sortOrder={sortOrder}

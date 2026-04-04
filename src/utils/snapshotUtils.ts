@@ -30,9 +30,9 @@ export function buildSnapshotBreadcrumbs(path: string, t?: (key: string) => stri
     return crumbs;
 }
 
-/** 统一路径分隔符为 '/'，去掉末尾斜杠 */
+/** 统一路径分隔符为 '/'，处理连续斜杠，去掉末尾斜杠 */
 export function normPath(p: string): string {
-    return p.replace(/\\/g, '/').replace(/\/$/, '');
+    return p.replace(/\\+/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
 }
 
 export const isVirtualGroupPath = isVirtualPath;
@@ -65,31 +65,40 @@ export function getDirectChildren(entries: DiffEntry[], currentPath: string): Di
             .filter(e => !isVirtualGroupPath(e.path))
             .map(e => normPath(e.path).split('/'));
 
-        if (!paths.length) return [];
-
-        // 逐段比较，找公共前缀段数
-        const first = paths[0];
-        let commonDepth = 0;
-        for (let d = 0; d < first.length - 1; d++) {
-            if (paths.every(p => p[d] === first[d])) {
-                commonDepth = d + 1;
-            } else {
-                break;
+        if (paths.length > 0) {
+            const minLen = Math.min(...paths.map(p => p.length));
+            let commonDepth = 0;
+            for (let d = 0; d < minLen; d++) {
+                const val = paths[0][d];
+                if (paths.every(p => p[d] === val)) {
+                    commonDepth = d + 1;
+                } else {
+                    break;
+                }
+            }
+            if (commonDepth > 0) {
+                cur = paths[0].slice(0, commonDepth).join('/');
             }
         }
-
-        cur = first.slice(0, commonDepth).join('/');
-        if (!cur) return [];
     }
 
-    const prefix = cur + '/';
+    const prefix = cur ? cur + '/' : '';
     const groups = new Map<string, { entries: DiffEntry[]; isDir: boolean; name: string }>();
 
     for (const e of entries) {
         const p = normPath(e.path);
-        if (!p.startsWith(prefix)) continue;
+        if (!p.startsWith(prefix) && prefix !== '') continue;
 
         const suffix = p.slice(prefix.length);
+        if (!suffix) {
+            // 当前节点就是 prefix 本身，此时它没有子路径后缀，直接当做单文件或自身返回
+            if (!groups.has(p)) {
+                groups.set(p, {entries: [], isDir: e.is_dir, name: e.name});
+            }
+            groups.get(p)!.entries.push(e);
+            continue;
+        }
+
         const slashIdx = suffix.indexOf('/');
         const childName = slashIdx >= 0 ? suffix.slice(0, slashIdx) : suffix;
         const childPath = prefix + childName;
