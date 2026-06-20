@@ -51,16 +51,15 @@
 
 ### 🎨 UI
 
-<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/083a1d14-25c8-477e-9bdb-f0aaae6804ab" />
-<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/446b53e2-7a3d-4ce3-abaf-aaae83f9c8f2" />
-<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/07328ad4-7290-45ce-a291-8e95141eeb82" />
+<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/5fc12dbc-c54a-4c82-a9d9-9fae60f7cc8c" />
+<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/3c18b9d3-a07d-4870-9485-0625f689ec55" />
+<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/b9779a48-f836-4368-b9cd-e23da8f3bf69" />
+
 ## 🧰 安装
 
 ### 系统要求
 
 - **Windows 10/11**（MFT 解析需要 NTFS 文件系统，需要管理员运行）
-- **Node.js 18+**（开发环境）
-- **Rust 1.70+**（从源代码构建）
 
 ### 预构建版本
 
@@ -69,23 +68,6 @@
 - 便携版可用
 - `diskclarity-setup.exe` - Windows 安装程序
 - `diskClarity.msi` - 备用 Windows 安装程序
-
-### 从源代码构建
-
-```bash
-# 克隆仓库
-git clone https://github.com/Ezeny1337/DiskClarity.git
-cd DiskClarity
-
-# 安装依赖
-npm install
-
-# 开发模式
-npm run tauri dev
-
-# 生产构建
-npm run tauri build
-```
 
 ## 🛠️ 支持
 
