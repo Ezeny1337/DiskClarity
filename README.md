@@ -53,17 +53,16 @@ provide extremely fast scanning speed and comprehensive storage analysis.
 
 ### 🎨 UI
 
-<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/083a1d14-25c8-477e-9bdb-f0aaae6804ab" />
-<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/446b53e2-7a3d-4ce3-abaf-aaae83f9c8f2" />
-<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/07328ad4-7290-45ce-a291-8e95141eeb82" />
+<img width="1920" height="1040" alt="ss1" src="https://github.com/user-attachments/assets/5fc12dbc-c54a-4c82-a9d9-9fae60f7cc8c" />
+<img width="1920" height="1040" alt="ss2" src="https://github.com/user-attachments/assets/3c18b9d3-a07d-4870-9485-0625f689ec55" />
+<img width="1920" height="1040" alt="ss3" src="https://github.com/user-attachments/assets/b9779a48-f836-4368-b9cd-e23da8f3bf69" />
+
 
 ## 🧰 Installation
 
 ### Prerequisites
 
 - **Windows 10/11** (NTFS file system required for MFT parsing and needs to be run by an administrator)
-- **Node.js 18+** for development
-- **Rust 1.70+** for building from source
 
 ### Pre-built Releases
 
@@ -72,23 +71,6 @@ Download the latest release from [GitHub Releases](https://github.com/Ezeny1337/
 - Portable versions available
 - `diskclarity-setup.exe` - Windows installer
 - `diskClarity.msi` - Alternative Windows installer
-
-### Build from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/Ezeny1337/DiskClarity.git
-cd DiskClarity
-
-# Install dependencies
-npm install
-
-# Development mode
-npm run tauri dev
-
-# Build for production
-npm run tauri build
-```
 
 ## 🛠️ Support
 
