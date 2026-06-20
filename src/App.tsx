@@ -6,7 +6,7 @@ import {useTabStore} from './store/tabStore';
 import {useAppStore} from './store/appStore';
 import {checkForUpdates, getChangelogReleases} from './services/updateService';
 import {HomePage} from './components/HomePage';
-import {DiskScanTab} from './components/DiskScanTab';
+import {DiskScanTab} from './components/scan/DiskScanTab';
 import {SnapshotTab} from './components/SnapshotTab';
 import {SnapshotAnalysisView} from './components/SnapshotAnalysisView';
 import {ChangelogDialog} from './components/ChangelogDialog';

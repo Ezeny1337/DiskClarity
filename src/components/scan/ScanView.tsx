@@ -3,18 +3,18 @@ import {useTranslation} from 'react-i18next';
 import {invoke} from '@tauri-apps/api/core';
 import {ungzip} from 'pako';
 import {decode} from '@msgpack/msgpack';
-import {useScanStore} from '../store/scanStore';
-import {useTabStore} from '../store/tabStore';
-import {getScanProgress} from '../services/scanService';
-import {saveSnapshot} from '../services/snapshotService';
-import {formatBytes} from '../utils/format';
-import {formatDurationPrecise, getStageText} from '../utils/scanUtils';
-import {updateTabData} from '../utils/tabNavigation';
+import {useScanStore} from '../../store/scanStore';
+import {useTabStore} from '../../store/tabStore';
+import {getScanProgress} from '../../services/scanService';
+import {saveSnapshot} from '../../services/snapshotService';
+import {formatBytes} from '../../utils/format';
+import {formatDurationPrecise, getStageText} from '../../utils/scanUtils';
+import {updateTabData} from '../../utils/tabNavigation';
 import {TreemapView} from './TreemapView';
 import {FileList} from './FileList';
 import {GroupOptions} from './GroupOptions';
 import {motion} from 'framer-motion';
-import {Card} from './ui/Card';
+import {Card} from '../ui/Card';
 import {Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField,} from '@mui/material';
 
 interface ScanViewProps {
@@ -67,7 +67,7 @@ export const ScanView: React.FC<ScanViewProps> = ({drive}) => {
                     taskId: currentTaskId,
                 });
                 const compressed = new Uint8Array(buffer);
-                const result = (() => decode(ungzip(compressed)))() as import('../types').FileNode;
+                const result = (() => decode(ungzip(compressed)))() as import('../../types').FileNode;
 
                 // 仅在根节点赋予初始路径
                 result.path = result.name;

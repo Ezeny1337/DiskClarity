@@ -10,7 +10,7 @@ import type {DiffEntry, DiffKind, SnapshotGroupBy, SnapshotMeta} from '../types'
 import {DEFAULT_GROUP_CONFIG, KIND_COLORS} from '../constants';
 import {diffSnapshots, listSnapshots} from '../services/snapshotService';
 import {updateTabData} from '../utils/tabNavigation';
-import {normPath} from '../utils/snapshotUtils';
+import {computeVisibleDiffEntries, normPath} from '../utils/snapshotUtils';
 import {DiffTreemap} from './snapshot/DiffTreemap';
 import {DiffList} from './snapshot/DiffList';
 import {DiffBarChart} from './snapshot/DiffBarChart';
@@ -93,6 +93,23 @@ export const SnapshotAnalysisView: React.FC = () => {
     const filteredEntries = useMemo(
         () => filterKind === 'all' ? entries : entries.filter((e) => e.kind === filterKind),
         [entries, filterKind],
+    );
+    const entryCounts = useMemo(() => {
+        const counts: Record<DiffKind | 'all', number> = {
+            all: entries.length,
+            added: 0,
+            removed: 0,
+            grown: 0,
+            shrunk: 0,
+        };
+        for (const entry of entries) {
+            counts[entry.kind] += 1;
+        }
+        return counts;
+    }, [entries]);
+    const visibleEntries = useMemo(
+        () => computeVisibleDiffEntries(filteredEntries, currentPath, showFilesOnly, groupBy, flatGrouping, t),
+        [filteredEntries, currentPath, showFilesOnly, groupBy, flatGrouping, t],
     );
 
     // 切换 filterKind 时重置路径
@@ -282,7 +299,7 @@ export const SnapshotAnalysisView: React.FC = () => {
                                         <span
                                             className="font-medium">{k === 'all' ? t('snapshot.allChanges') : t(`snapshot.kind.${k}`)}</span>
                                         <span className="text-xs px-1.5 py-0.5 rounded-full bg-white/10 text-white/70">
-                                            {k === 'all' ? entries.length : entries.filter(e => e.kind === k).length}
+                                            {entryCounts[k]}
                                         </span>
                                     </div>
                                 </button>
@@ -400,11 +417,9 @@ export const SnapshotAnalysisView: React.FC = () => {
                     {/* Treemap 差异视图 */}
                     <div className="flex-none h-162.5 rounded-xl overflow-hidden border border-white/6">
                         <DiffTreemap
-                            entries={filteredEntries}
+                            entries={visibleEntries}
                             currentPath={currentPath}
                             showFilesOnly={showFilesOnly}
-                            groupBy={groupBy}
-                            flatGrouping={flatGrouping}
                             onNavigate={handleNavigate}
                             onOpenExplorer={handleOpenExplorer}
                             onViewTrend={handleViewTrend}
@@ -436,19 +451,16 @@ export const SnapshotAnalysisView: React.FC = () => {
                         <div className="flex-1 min-h-0 overflow-hidden">
                             {bottomTab === 0 && (
                                 <DiffList
-                                    entries={filteredEntries}
+                                    entries={visibleEntries}
                                     showFilesOnly={showFilesOnly}
                                     currentPath={currentPath}
-                                    groupBy={groupBy}
-                                    flatGrouping={flatGrouping}
                                     onNavigate={handleNavigate}
                                     onOpenExplorer={handleOpenExplorer}
                                     onViewTrend={handleViewTrend}
                                 />
                             )}
                             {bottomTab === 1 &&
-                                <DiffBarChart entries={filteredEntries} topN={topNCount} showFilesOnly={showFilesOnly}
-                                              currentPath={currentPath} groupBy={groupBy} flatGrouping={flatGrouping}/>}
+                                <DiffBarChart entries={visibleEntries} topN={topNCount}/>}
                         </div>
                     </div>
                 </div>

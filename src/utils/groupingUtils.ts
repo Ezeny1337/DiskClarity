@@ -2,16 +2,16 @@ import type {FileNode, GroupBy, SortField, SortOrder} from '../types';
 import {getFileType} from './fileTypeClassifier';
 
 /** 文件类型显示名称映射 */
-const FILE_TYPE_DISPLAY_MAP: Record<string, { fallbackLabel: string; emoji: string }> = {
-    'video': {fallbackLabel: 'Video', emoji: '🎬'},
-    'image': {fallbackLabel: 'Image', emoji: '🖼️'},
-    'audio': {fallbackLabel: 'Audio', emoji: '🎵'},
-    'document': {fallbackLabel: 'Document', emoji: '📄'},
-    'archive': {fallbackLabel: 'Archive', emoji: '📦'},
-    'code': {fallbackLabel: 'Code', emoji: '💻'},
-    'config': {fallbackLabel: 'Config', emoji: '⚙️'},
-    'executable': {fallbackLabel: 'Executable', emoji: '⚙️'},
-    'other': {fallbackLabel: 'Other', emoji: '🛠️'},
+const FILE_TYPE_DISPLAY_MAP: Record<string, { fallbackLabel: string }> = {
+    'video': {fallbackLabel: 'Video'},
+    'image': {fallbackLabel: 'Image'},
+    'audio': {fallbackLabel: 'Audio'},
+    'document': {fallbackLabel: 'Document'},
+    'archive': {fallbackLabel: 'Archive'},
+    'code': {fallbackLabel: 'Code'},
+    'config': {fallbackLabel: 'Config'},
+    'executable': {fallbackLabel: 'Executable'},
+    'other': {fallbackLabel: 'Other'},
 };
 
 const FILE_TYPE_I18N_KEY_MAP: Record<string, string> = {
@@ -59,7 +59,7 @@ export function getGroupDisplayName(groupKey: string, groupBy: GroupBy, t?: (key
 
     if (groupKey === '__folder__') {
         const label = t ? t('grouping.folder') : 'Folder';
-        return label === 'grouping.folder' ? '📁 Folder' : `📁 ${label}`;
+        return label === 'grouping.folder' ? 'Folder' : label;
     }
 
     if (groupBy === 'type') {
@@ -74,7 +74,7 @@ export function getGroupDisplayName(groupKey: string, groupBy: GroupBy, t?: (key
             }
         }
 
-        return `${typeInfo.emoji} ${label}`;
+        return label;
     }
 
     if (groupBy === 'extension') {

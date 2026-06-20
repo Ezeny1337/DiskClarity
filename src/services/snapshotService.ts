@@ -1,6 +1,7 @@
 import {invoke} from '@tauri-apps/api/core';
 import {decode} from '@msgpack/msgpack';
 import {ungzip} from 'pako';
+import {normPath} from '../utils/snapshotUtils';
 
 /** 快照元数据 */
 export interface SnapshotMeta {
@@ -39,6 +40,21 @@ export interface DiffResult {
     added_count: number;
     removed_count: number;
     changed_count: number;
+}
+
+const NORMALIZE_BATCH_SIZE = 10000;
+
+async function normalizeDiffResultPaths(result: DiffResult): Promise<DiffResult> {
+    for (let i = 0; i < result.entries.length; i += NORMALIZE_BATCH_SIZE) {
+        const end = Math.min(i + NORMALIZE_BATCH_SIZE, result.entries.length);
+        for (let j = i; j < end; j++) {
+            result.entries[j].path = normPath(result.entries[j].path);
+        }
+        if (end < result.entries.length) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+    }
+    return result;
 }
 
 /**
@@ -82,5 +98,6 @@ export async function deleteSnapshot(id: string): Promise<void> {
 export async function diffSnapshots(idA: string, idB: string): Promise<DiffResult> {
     const buffer = await invoke<ArrayBuffer>('diff_snapshots', {idA, idB});
     const compressed = new Uint8Array(buffer);
-    return decode(ungzip(compressed)) as DiffResult;
+    const result = decode(ungzip(compressed)) as DiffResult;
+    return await normalizeDiffResultPaths(result);
 }

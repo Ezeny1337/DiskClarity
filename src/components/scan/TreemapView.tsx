@@ -1,19 +1,19 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Chip, Menu, MenuItem} from '@mui/material';
 import {useTranslation} from 'react-i18next';
-import type {FileNode} from '../types';
-import {useTabStore} from '../store/tabStore';
-import {DEFAULT_GROUP_CONFIG, DEFAULT_SORT_CONFIG} from '../constants';
-import {useSnapshotStore} from '../store/snapshotStore';
-import {formatBytes} from '../utils/format';
+import type {FileNode} from '../../types';
+import {useTabStore} from '../../store/tabStore';
+import {DEFAULT_GROUP_CONFIG, DEFAULT_SORT_CONFIG} from '../../constants';
+import {useSnapshotStore} from '../../store/snapshotStore';
+import {formatBytes} from '../../utils/format';
 import {FolderOpen} from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
-import {getGroupDisplayName, groupFileNodes, parseVirtualGroupPath, sortGroupedNodes} from '../utils/groupingUtils';
-import {buildBreadcrumbs, updateCurrentTabData} from '../utils/tabNavigation';
-import {PathBreadcrumb} from './ui/PathBreadcrumb';
-import {filterFileTree, findNodeByPath, hasDiskSearchFilter} from '../utils/diskSearch';
-import {useDiskSearchCriteria} from '../hooks/useDiskSearchCriteria';
-import {ellipsizeText, type FileNodeRect, layoutFileNodeRects} from '../utils/treemapUtils';
+import {getGroupDisplayName, groupFileNodes, parseVirtualGroupPath, sortGroupedNodes} from '../../utils/groupingUtils';
+import {buildBreadcrumbs, updateCurrentTabData} from '../../utils/tabNavigation';
+import {PathBreadcrumb} from '../ui/PathBreadcrumb';
+import {filterFileTree, findNodeByPath, hasDiskSearchFilter} from '../../utils/diskSearch';
+import {useDiskSearchCriteria} from '../../hooks/useDiskSearchCriteria';
+import {ellipsizeText, type FileNodeRect, layoutFileNodeRects} from '../../utils/treemapUtils';
 
 type TreemapRect = FileNodeRect;
 

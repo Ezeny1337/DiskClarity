@@ -1,12 +1,12 @@
 import React, {useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {DiskInfo, getCpuCount, getDiskInfo, getDrives} from '../services/scanService';
-import {formatBytes} from '../utils/format';
-import {useScanStore} from '../store/scanStore';
+import {DiskInfo, getCpuCount, getDiskInfo, getDrives} from '../../services/scanService';
+import {formatBytes} from '../../utils/format';
+import {useScanStore} from '../../store/scanStore';
 import {AnimatePresence, motion} from 'framer-motion';
 import {Check, Cpu, HardDrive, Loader2} from 'lucide-react';
-import {cn} from '../lib/utils';
-import {Card} from './ui/Card';
+import {cn} from '../../lib/utils';
+import {Card} from '../ui/Card';
 
 interface DiskSelectorProps {
     onSelect: (drive: string) => void;

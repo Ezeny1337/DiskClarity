@@ -3,18 +3,18 @@ import {useVirtualizer} from '@tanstack/react-virtual';
 import {Chip} from '@mui/material';
 import {DiffContextMenu} from '../ui/DiffContextMenu';
 import {useTranslation} from 'react-i18next';
-import type {DiffEntry, SnapshotGroupBy} from '../../types';
+import type {DiffEntry} from '../../types';
 import {KIND_BG, KIND_COLORS} from '../../constants';
 import {formatBytes} from '../../utils/format';
-import {buildSnapshotBreadcrumbs, computeVisibleDiffEntries, isVirtualGroupPath,} from '../../utils/snapshotUtils';
+import {buildSnapshotBreadcrumbs, isVirtualGroupPath,} from '../../utils/snapshotUtils';
 import {PathBreadcrumb} from '../ui/PathBreadcrumb';
+
+import {File, Folder} from 'lucide-react';
 
 interface DiffListProps {
     entries: DiffEntry[];
     showFilesOnly: boolean;
     currentPath: string;
-    groupBy: SnapshotGroupBy;
-    flatGrouping: boolean;
     onNavigate: (path: string) => void;
     onOpenExplorer: (path: string) => void;
     onViewTrend: (entry: DiffEntry) => void;
@@ -24,8 +24,6 @@ export const DiffList: React.FC<DiffListProps> = ({
                                                       entries,
                                                       showFilesOnly,
                                                       currentPath,
-                                                      groupBy,
-                                                      flatGrouping,
                                                       onNavigate,
                                                       onOpenExplorer,
                                                       onViewTrend
@@ -34,14 +32,10 @@ export const DiffList: React.FC<DiffListProps> = ({
     const [ctxMenu, setCtxMenu] = React.useState<{ mouseX: number; mouseY: number; entry: DiffEntry } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const visibleEntries = useMemo(
-        () => computeVisibleDiffEntries(entries, currentPath, showFilesOnly, groupBy, flatGrouping, t),
-        [entries, currentPath, showFilesOnly, groupBy, flatGrouping, t],
-    );
     const listBreadcrumbs = useMemo(() => buildSnapshotBreadcrumbs(currentPath, t), [currentPath, t]);
 
     const rowVirtualizer = useVirtualizer({
-        count: visibleEntries.length,
+        count: entries.length,
         getScrollElement: () => scrollRef.current,
         estimateSize: () => 40,
         overscan: 8,
@@ -71,14 +65,14 @@ export const DiffList: React.FC<DiffListProps> = ({
 
             {/* 列表内容 */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar">
-                {visibleEntries.length === 0 ? (
+                {entries.length === 0 ? (
                     <div className="flex items-center justify-center h-32">
                         <span className="text-sm text-white/30">{t('snapshot.noDiff')}</span>
                     </div>
                 ) : (
                     <div style={{height: rowVirtualizer.getTotalSize(), position: 'relative'}}>
                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                            const entry = visibleEntries[virtualRow.index];
+                            const entry = entries[virtualRow.index];
                             const idx = virtualRow.index;
                             const evenBg = idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent';
                             return (
@@ -111,10 +105,12 @@ export const DiffList: React.FC<DiffListProps> = ({
                                         }}
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <span style={{
-                                                color: KIND_COLORS[entry.kind],
-                                                fontSize: 12
-                                            }}>{entry.is_dir ? '📁' : '📄'}</span>
+                                            <span className="flex items-center justify-center shrink-0 w-4" style={{
+                                                color: KIND_COLORS[entry.kind]
+                                            }}>
+                                                {entry.is_dir ? <Folder size={14}/> :
+                                                    <File size={14} className="opacity-70"/>}
+                                            </span>
                                             <span className="truncate text-white/85"
                                                   title={entry.path}>{entry.name}</span>
                                         </div>

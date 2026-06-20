@@ -1,53 +1,22 @@
 import React, {useMemo} from 'react';
 import {Chip} from '@mui/material';
 import {useTranslation} from 'react-i18next';
-import type {DiffEntry, SnapshotGroupBy} from '../../types';
+import type {DiffEntry} from '../../types';
 import {KIND_BG, KIND_COLORS} from '../../constants';
 import {formatBytes} from '../../utils/format';
-import {
-    getDirectChildren,
-    getEntriesInVirtualGroup,
-    getFlatFiles,
-    groupDiffEntriesWithScope,
-    parseVirtualGroupPath,
-} from '../../utils/snapshotUtils';
 
 interface DiffBarChartProps {
     entries: DiffEntry[];
     topN: number;
-    showFilesOnly: boolean;
-    currentPath: string;
-    groupBy: SnapshotGroupBy;
-    flatGrouping: boolean;
 }
 
 export const DiffBarChart: React.FC<DiffBarChartProps> = ({
                                                               entries,
                                                               topN,
-                                                              showFilesOnly,
-                                                              currentPath,
-                                                              groupBy,
-                                                              flatGrouping
                                                           }) => {
     const {t} = useTranslation();
 
-    const topEntries = useMemo(() => {
-        const virtual = parseVirtualGroupPath(currentPath);
-        if (virtual) {
-            const scopeBase = (showFilesOnly || flatGrouping)
-                ? getFlatFiles(entries, virtual.scopePath)
-                : getDirectChildren(entries, virtual.scopePath);
-            return getEntriesInVirtualGroup(scopeBase, currentPath)
-                .sort((a, b) => Math.abs(b.size_delta) - Math.abs(a.size_delta))
-                .slice(0, topN);
-        }
-
-        const base = (showFilesOnly || flatGrouping)
-            ? getFlatFiles(entries, currentPath)
-            : getDirectChildren(entries, currentPath);
-        const grouped = groupDiffEntriesWithScope(base, groupBy, currentPath, t);
-        return grouped.sort((a, b) => Math.abs(b.size_delta) - Math.abs(a.size_delta)).slice(0, topN);
-    }, [entries, topN, showFilesOnly, currentPath, groupBy, flatGrouping, t]);
+    const topEntries = useMemo(() => entries.slice(0, topN), [entries, topN]);
 
     if (!topEntries.length) {
         return (

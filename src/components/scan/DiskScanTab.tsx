@@ -1,7 +1,7 @@
 import React from 'react';
 import {DiskSelector} from './DiskSelector';
 import {ScanView} from './ScanView';
-import {useTabStore} from '../store/tabStore';
+import {useTabStore} from '../../store/tabStore';
 
 export const DiskScanTab: React.FC = () => {
     const {getActiveTab, updateCurrentTab} = useTabStore();

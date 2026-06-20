@@ -12,9 +12,9 @@ import {
 } from '@mui/material';
 import {Layers, Plus, Search, X} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
-import type {GroupBy} from '../types';
-import {useTabStore} from '../store/tabStore';
-import {DEFAULT_GROUP_CONFIG} from '../constants';
+import type {GroupBy} from '../../types';
+import {useTabStore} from '../../store/tabStore';
+import {DEFAULT_GROUP_CONFIG} from '../../constants';
 
 export const GroupOptions: React.FC = () => {
     const {t} = useTranslation();

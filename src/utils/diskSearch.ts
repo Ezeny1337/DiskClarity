@@ -188,13 +188,26 @@ export function filterFileTree(root: FileNode, criteria: DiskSearchCriteria): Fi
 
 export function findNodeByPath(root: FileNode, targetPath: string): FileNode | null {
     if (root.path === targetPath) return root;
-    const stack: FileNode[] = [...(root.children || [])];
+    const stack: { node: FileNode; parentPath: string }[] = (root.children || []).map(child => ({
+        node: child,
+        parentPath: root.path || root.name
+    }));
+
     while (stack.length > 0) {
-        const node = stack.pop();
+        const {node, parentPath} = stack.pop()!;
         if (!node) continue;
-        if (node.path === targetPath) return node;
+
+        const currentPath = node.path || `${parentPath}\\${node.name}`;
+
+        if (currentPath === targetPath) {
+            return {...node, path: currentPath};
+        }
+
         if (node.children && node.children.length) {
-            stack.push(...node.children);
+            stack.push(...node.children.map(child => ({
+                node: child,
+                parentPath: currentPath
+            })));
         }
     }
     return null;

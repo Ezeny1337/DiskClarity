@@ -1,10 +1,10 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {DiffContextMenu} from '../ui/DiffContextMenu';
 import {useTranslation} from 'react-i18next';
-import type {DiffEntry, DiffKind, SnapshotGroupBy} from '../../types';
+import type {DiffEntry, DiffKind} from '../../types';
 import {KIND_COLORS} from '../../constants';
 import {formatBytes} from '../../utils/format';
-import {buildSnapshotBreadcrumbs, computeVisibleDiffEntries, isVirtualGroupPath,} from '../../utils/snapshotUtils';
+import {buildSnapshotBreadcrumbs, isVirtualGroupPath,} from '../../utils/snapshotUtils';
 import {type DiffRect, ellipsizeText, layoutDiffRects} from '../../utils/treemapUtils';
 import {PathBreadcrumb} from '../ui/PathBreadcrumb';
 
@@ -12,8 +12,6 @@ interface DiffTreemapProps {
     entries: DiffEntry[];
     currentPath: string;
     showFilesOnly: boolean;
-    groupBy: SnapshotGroupBy;
-    flatGrouping: boolean;
     onNavigate: (path: string) => void;
     onOpenExplorer: (path: string) => void;
     onViewTrend: (entry: DiffEntry) => void;
@@ -23,8 +21,6 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
                                                             entries,
                                                             currentPath,
                                                             showFilesOnly,
-                                                            groupBy,
-                                                            flatGrouping,
                                                             onNavigate,
                                                             onOpenExplorer,
                                                             onViewTrend,
@@ -41,13 +37,9 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
 
     const breadcrumbs = useMemo(() => buildSnapshotBreadcrumbs(currentPath, t), [currentPath, t]);
 
-    const visibleEntries = useMemo(
-        () => computeVisibleDiffEntries(entries, currentPath, showFilesOnly, groupBy, flatGrouping, t),
-        [entries, currentPath, showFilesOnly, groupBy, flatGrouping, t],
-    );
 
     // 布局矩形
-    const rects = useMemo(() => layoutDiffRects(visibleEntries, size.w, size.h), [visibleEntries, size]);
+    const rects = useMemo(() => layoutDiffRects(entries, size.w, size.h), [entries, size]);
 
     // 监听容器尺寸变化
     useEffect(() => {
@@ -101,7 +93,7 @@ export const DiffTreemap: React.FC<DiffTreemapProps> = ({
             )}
 
             {/* Treemap 画布 */}
-            {!visibleEntries.length ? (
+            {!entries.length ? (
                 <div className="flex-1 flex items-center justify-center">
                     <span className="text-sm text-white/40">{t('snapshot.noDiff')}</span>
                 </div>

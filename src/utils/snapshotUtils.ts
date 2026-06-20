@@ -32,7 +32,15 @@ export function buildSnapshotBreadcrumbs(path: string, t?: (key: string) => stri
 
 /** 统一路径分隔符为 '/'，处理连续斜杠，去掉末尾斜杠 */
 export function normPath(p: string): string {
-    return p.replace(/\\+/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
+    if (!p) return '';
+    let res = p.split('\\').join('/');
+    while (res.includes('//')) {
+        res = res.split('//').join('/');
+    }
+    if (res.length > 1 && res.endsWith('/')) {
+        res = res.slice(0, -1);
+    }
+    return res;
 }
 
 export const isVirtualGroupPath = isVirtualPath;
@@ -57,13 +65,13 @@ export const getSnapshotTypeKey = getTypeKey;
 export function getDirectChildren(entries: DiffEntry[], currentPath: string): DiffEntry[] {
     if (!entries.length) return [];
 
-    let cur = normPath(currentPath);
+    let cur = currentPath;
 
     if (!cur) {
         // 找所有条目路径的公共根前缀
         const paths = entries
             .filter(e => !isVirtualGroupPath(e.path))
-            .map(e => normPath(e.path).split('/'));
+            .map(e => e.path.split('/'));
 
         if (paths.length > 0) {
             const minLen = Math.min(...paths.map(p => p.length));
@@ -86,7 +94,7 @@ export function getDirectChildren(entries: DiffEntry[], currentPath: string): Di
     const groups = new Map<string, { entries: DiffEntry[]; isDir: boolean; name: string }>();
 
     for (const e of entries) {
-        const p = normPath(e.path);
+        const p = e.path;
         if (!p.startsWith(prefix) && prefix !== '') continue;
 
         const suffix = p.slice(prefix.length);
@@ -225,6 +233,6 @@ export function computeVisibleDiffEntries(
 /** 获取扁平文件列表 */
 export function getFlatFiles(entries: DiffEntry[], currentPath: string): DiffEntry[] {
     if (!currentPath) return entries.filter((e) => !e.is_dir && !isVirtualGroupPath(e.path));
-    const prefix = normPath(currentPath) + '/';
-    return entries.filter((e) => !e.is_dir && !isVirtualGroupPath(e.path) && normPath(e.path).startsWith(prefix));
+    const prefix = currentPath + '/';
+    return entries.filter((e) => !e.is_dir && !isVirtualGroupPath(e.path) && e.path.startsWith(prefix));
 }
